@@ -1,123 +1,82 @@
-# GTE-Small in Pure C
+# GTE-Small in Go
 
-A dependency-free C implementation of the [GTE-small](https://huggingface.co/thenlper/gte-small) text embedding model. Generates 384-dimensional embeddings for semantic similarity, search, and clustering.
+A pure Go implementation of the [GTE-small](https://huggingface.co/thenlper/gte-small) text embedding model. Produces 384-dimensional, L2-normalized embeddings suitable for similarity search and clustering, directly ported from [@antirez's C implementation](https://github.com/antirez/gte-pure-C).
 
-**~700 lines of C. No dependencies. Matches PyTorch speed and accuracy.**
-
-**Disclaimer**: This implementation was implemented using Claude Code and tested agaisnt the Python implementation. The output vectors are matching, but no accurate testing was performed to make sure the tokenizer and the inference works well in all the cases. If you plan using this library, make sure to verify the results are accurate.
+Performance is _not_ comparable to the C version, with embeddings generated ~3x slower due to Go's lack of low-level optimizations.
 
 ## Quick Start
 
 ```bash
-# Build
-make
+# Install deps for conversion
+pip install safetensors requests
 
-# Convert model (requires Python + safetensors, one-time)
-pip install safetensors
-python convert_model.py /path/to/gte-small gte-small.gtemodel
+# Download Hugging Face weights and convert to .gtemodel
+python - <<'PY'
+import os, requests, pathlib
+base = "https://huggingface.co/thenlper/gte-small/resolve/main"
+files = ["config.json", "vocab.txt", "tokenizer_config.json", "special_tokens_map.json", "model.safetensors"]
+out = pathlib.Path("models/gte-small")
+out.mkdir(parents=True, exist_ok=True)
+for name in files:
+    url = f"{base}/{name}"
+    path = out / name
+    if path.exists():
+        continue
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(8192):
+                if chunk:
+                    f.write(chunk)
+PY
+python convert_model.py models/gte-small gte-small.gtemodel
 
-# Test
-./test_gte "I love cats" "I love dogs" "The stock market crashed"
+# Run the demo
+go run ./cmd/gte --model-path gte-small.gtemodel "I love cats" "I love dogs" "The stock market crashed"
+
+# Or via make
+make                # builds Go binaries and runs tests
+make run-go         # runs the demo with sample sentences
 ```
 
-Output:
-```
+Sample output:
+
+```bash
+Model loaded in 0.11 s
+Embedding dimension: 384
+Max sequence length: 512
+
 Cosine similarity matrix:
        S1     S2     S3
-S1:  1.000  0.898  0.725
-S2:  0.898  1.000  0.716
-S3:  0.725  0.716  1.000
+S1:  1.000  0.898  0.727
+S2:  0.898  1.000  0.722
+S3:  0.727  0.722  1.000
 ```
 
-## C API
+## Go API
 
-```c
-#include "gte.h"
+```go
+import "github.com/rcarmo/gte-go/gte"
 
-// Load model
-gte_ctx *ctx = gte_load("gte-small.gtemodel");
+model, _ := gte.Load("gte-small.gtemodel")
+defer model.Close()
 
-// Generate embedding (384 floats, normalized)
-float *emb = gte_embed(ctx, "Your text here");
-
-// Compare texts (dot product = cosine similarity for normalized vectors)
-float *emb1 = gte_embed(ctx, "I love cats");
-float *emb2 = gte_embed(ctx, "I love dogs");
-float similarity = gte_cosine_similarity(emb1, emb2, 384);  // 0.898
-
-// Cleanup
-free(emb);
-free(emb1);
-free(emb2);
-gte_free(ctx);
+emb, _ := model.Embed("Hello world")          // []float32 length 384, L2-normalized
+embBatch, _ := model.EmbedBatch([]string{"hi", "there"})
+sim, _ := gte.CosineSimilarity(embBatch[0], embBatch[1])
 ```
-
-### API Reference
-
-| Function | Description |
-|----------|-------------|
-| `gte_ctx *gte_load(path)` | Load model, returns NULL on error |
-| `void gte_free(ctx)` | Free model and resources |
-| `float *gte_embed(ctx, text)` | Generate embedding (caller must free) |
-| `float *gte_embed_batch(ctx, texts, count)` | Batch embed multiple texts |
-| `int gte_dim(ctx)` | Embedding dimension (384) |
-| `float gte_cosine_similarity(a, b, dim)` | Cosine similarity between embeddings |
-
-## Performance
-
-| Metric | Value |
-|--------|-------|
-| Inference time | **~12ms** per sentence |
-| Model load time | ~20ms |
-| Model size | 127 MB |
-| Memory usage | ~130 MB (model) + ~2 MB (working) |
-| Accuracy | Identical to Python/PyTorch |
-
-Benchmarked on Apple MacBook pro M3. Compile with `-O3 -march=native -ffast-math` for best performance (~10x speedup compared to not letting the compiler exploit parallel instructions).
-
-### vs Python/PyTorch
-
-The C implementation matches the sentence-transformers/PyTorch inference speed within 15%:
-
-| Implementation | Time |
-|----------------|------|
-| This (C) | 12ms |
-| PyTorch | 10ms |
 
 ## Model Format
 
-The `.gtemodel` format is a simple binary concatenation:
-- Header: magic + config (vocab size, hidden dim, layers, etc.)
-- Vocabulary: length-prefixed UTF-8 strings
-- Weights: raw float32 arrays in fixed order
+`.gtemodel` is identical to the original C project: a binary header, vocabulary, and contiguous float32 weights. Use `convert_model.py` to export from Hugging Face weights.
 
-Convert from HuggingFace:
-```bash
-python convert_model.py /path/to/gte-small output.gtemodel
-```
-
-## CLI Usage
+## Testing
 
 ```bash
-./test_gte [OPTIONS] [SENTENCES...]
-
-Options:
-  --model-path PATH   Path to .gtemodel file
-  --help              Show help
-
-Examples:
-  ./test_gte                                    # Built-in test sentences
-  ./test_gte "Hello world" "Goodbye world"      # Custom sentences
-  ./test_gte --model-path custom.gtemodel       # Custom model path
+GTE_MODEL_PATH=gte-small.gtemodel go test ./...
 ```
 
-## How It Works
-
-1. **Tokenization**: WordPiece tokenizer splits text into subwords
-2. **Embedding**: Token + position + segment embeddings
-3. **Transformer**: 12 BERT layers (self-attention + FFN)
-4. **Pooling**: Mean of token embeddings
-5. **Normalize**: L2 normalization for cosine similarity
+`gte/gte_test.go` embeds three reference sentences and checks cosine similarities within a small tolerance.
 
 ## License
 
