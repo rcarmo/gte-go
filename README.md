@@ -37,6 +37,8 @@ go run ./cmd/gte --model-path gte-small.gtemodel "I love cats" "I love dogs" "Th
 # Or via make
 make                # builds Go binaries and runs tests
 make run-go         # runs the demo with sample sentences
+make run-bench      # runs the single-model benchmark (reports ms/op and throughput)
+make go-bench       # go test benchmark (ms/op_avg via go test)
 ```
 
 Sample output:
@@ -70,13 +72,17 @@ sim, _ := gte.CosineSimilarity(embBatch[0], embBatch[1])
 
 `.gtemodel` is identical to the original C project: a binary header, vocabulary, and contiguous float32 weights. Use `convert_model.py` to export from Hugging Face weights.
 
-## Testing
+## Testing & Benchmarks
 
 ```bash
 GTE_MODEL_PATH=gte-small.gtemodel go test ./...
+GTE_MODEL_PATH=gte-small.gtemodel go test -bench=BenchmarkEmbed -benchmem ./gte
+make run-bench   # convenient single-model benchmark with human-readable output
 ```
 
-`gte/gte_test.go` embeds three reference sentences and checks cosine similarities within a small tolerance.
+- `gte/gte_test.go` embeds three reference sentences and checks cosine similarities within a small tolerance.
+- `gte/bench_test.go` reports per-embedding latency (ms/op_avg) via `go test`.
+- `cmd/bench` prints total calls, average ms per embedding (derived from total_time/total_calls), and throughput.
 
 ## License
 
