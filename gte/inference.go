@@ -3,34 +3,40 @@ package gte
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sync"
+
+	"gonum.org/v1/gonum/blas"
+	"gonum.org/v1/gonum/blas/blas32"
+	"gonum.org/v1/gonum/blas/gonum"
 )
 
+func init() {
+	blas32.Use(gonum.Implementation{})
+}
+
+// linear computes Y = X·W^T + bias using BLAS GEMM.
+// W is stored as [outDim, inDim] (row-major), so W^T gives us X·W^T = [seqLen, outDim].
 func linear(y, x, w, b []float32, seqLen, inDim, outDim int) {
-	for s := 0; s < seqLen; s++ {
-		xRow := x[s*inDim:][:inDim]
-		yRow := y[s*outDim:][:outDim]
-		for o := 0; o < outDim; o++ {
-			wRow := w[o*inDim:][:inDim]
-			sum := float32(0)
-			if b != nil {
-				sum = b[o]
+	// Y[seqLen, outDim] = X[seqLen, inDim] · W^T[inDim, outDim]
+	// GEMM: C = alpha*A*B + beta*C
+	// With B = W (row-major [outDim, inDim]), transposed => [inDim, outDim]
+	blas32.Implementation().Sgemm(
+		blas.NoTrans, blas.Trans,
+		seqLen, outDim, inDim,
+		1.0,
+		x, inDim,  // A = X [seqLen x inDim]
+		w, inDim,  // B = W [outDim x inDim], transposed
+		0.0,
+		y, outDim, // C = Y [seqLen x outDim]
+	)
+
+	// Add bias
+	if b != nil {
+		for s := 0; s < seqLen; s++ {
+			yRow := y[s*outDim:][:outDim]
+			for o := 0; o < outDim; o++ {
+				yRow[o] += b[o]
 			}
-			i := 0
-			for ; i+16 <= inDim; i += 16 {
-				sum += xRow[i]*wRow[i] + xRow[i+1]*wRow[i+1] + xRow[i+2]*wRow[i+2] + xRow[i+3]*wRow[i+3]
-				sum += xRow[i+4]*wRow[i+4] + xRow[i+5]*wRow[i+5] + xRow[i+6]*wRow[i+6] + xRow[i+7]*wRow[i+7]
-				sum += xRow[i+8]*wRow[i+8] + xRow[i+9]*wRow[i+9] + xRow[i+10]*wRow[i+10] + xRow[i+11]*wRow[i+11]
-				sum += xRow[i+12]*wRow[i+12] + xRow[i+13]*wRow[i+13] + xRow[i+14]*wRow[i+14] + xRow[i+15]*wRow[i+15]
-			}
-			for ; i+4 <= inDim; i += 4 {
-				sum += xRow[i]*wRow[i] + xRow[i+1]*wRow[i+1] + xRow[i+2]*wRow[i+2] + xRow[i+3]*wRow[i+3]
-			}
-			for ; i < inDim; i++ {
-				sum += xRow[i] * wRow[i]
-			}
-			yRow[o] = sum
 		}
 	}
 }
@@ -50,7 +56,7 @@ func layerNorm(out, x, gamma, beta []float32, seqLen, hidden int) {
 			variance += diff * diff
 		}
 		variance /= float32(hidden)
-		stdInv := float32(1.0 / math.Sqrt(float64(variance+layerNormEps)))
+		stdInv := fastInvSqrt(variance + layerNormEps)
 
 		for i := 0; i < hidden; i++ {
 			out[rowStart+i] = gamma[i]*(x[rowStart+i]-mean)*stdInv + beta[i]
@@ -62,7 +68,7 @@ func gelu(x []float32) {
 	const c = float32(0.7978845608) // sqrt(2/pi)
 	for i := range x {
 		v := x[i]
-		x[i] = 0.5 * v * (1 + float32(math.Tanh(float64(c*(v+0.044715*v*v*v)))))
+		x[i] = 0.5 * v * (1 + fastTanh(c*(v+0.044715*v*v*v)))
 	}
 }
 
@@ -75,7 +81,7 @@ func softmax(x []float32) {
 	}
 	sum := float32(0)
 	for i, v := range x {
-		x[i] = float32(math.Exp(float64(v - maxVal)))
+		x[i] = fastExp(v - maxVal)
 		sum += x[i]
 	}
 	inv := 1 / sum
@@ -89,11 +95,10 @@ func l2Normalize(x []float32) {
 	for _, v := range x {
 		norm += v * v
 	}
-	norm = float32(math.Sqrt(float64(norm)))
 	if norm == 0 {
 		return
 	}
-	inv := 1 / norm
+	inv := fastInvSqrt(norm)
 	for i := range x {
 		x[i] *= inv
 	}
@@ -108,7 +113,7 @@ func (m *Model) selfAttention(layer *LayerWeights, seqLen int, attnMask []bool) 
 	linear(m.kProj, m.hiddenStates, layer.KeyWeight, layer.KeyBias, seqLen, hidden, hidden)
 	linear(m.vProj, m.hiddenStates, layer.ValueWeight, layer.ValueBias, seqLen, hidden, hidden)
 
-	scale := float32(1.0 / math.Sqrt(float64(headDim)))
+	scale := fastInvSqrt(float32(headDim))
 
 	var wg sync.WaitGroup
 	wg.Add(heads)

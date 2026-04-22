@@ -84,6 +84,21 @@ make run-bench   # convenient single-model benchmark with human-readable output
 - `gte/bench_test.go` reports per-embedding latency (ms/op_avg) via `go test`.
 - `cmd/bench` prints total calls, average ms per embedding (derived from total_time/total_calls), and throughput.
 
+## Optimization Log
+
+All benchmarks on `12th Gen Intel Core i7-12700`, 6 P-cores, Linux/amd64, Go 1.26.2.
+Text: `"The stock market crashed"` (5 tokens), `go test -bench=BenchmarkEmbed -benchtime=10s`.
+
+| Stage | ms/op | vs baseline | Change |
+|---|---|---|---|
+| **Baseline** (main) | 67.4 | — | Manual loop unrolling, `math.Tanh/Exp/Sqrt` via float64 |
+| **Phase 1a** — fast float32 math | 63.4 | 1.06× | Replace `math.Tanh/Exp/Sqrt` with float32 approximations |
+| **Phase 1b** — gonum BLAS `linear()` | 7.4 | 9.1× | Replace hand-rolled dot products with `blas32.Sgemm` |
+| **Phase 1c** — BLAS attention (Q·K^T, attn·V) | — | — | *pending* |
+| **Phase 2a** — fused QKV projection | — | — | *pending* |
+| **Phase 2b** — contiguous head layout | — | — | *pending* |
+| **Phase 2c** — fast GELU approximation | — | — | *pending* |
+
 ## License
 
 MIT
