@@ -100,6 +100,7 @@ Text: `"The stock market crashed"` (5 tokens), `go test -bench=BenchmarkEmbed -b
 | **Phase 2c** — fast GELU approximation | — | — | *skipped: sigmoid GELU too inaccurate for this model* |
 | **Phase 2d** — zero-alloc serial sgemm | 6.5 | 10.4× | Custom serial matmul for small problems; gonum parallel for large |
 | **Phase 3a** — OpenBLAS via CGo | 5.5 | 12.3× | Direct `cblas_sgemm` call, zero Go allocs, SIMD-accelerated |
+| **Phase 3b** — zero-alloc tokenizer | 5.6 | 12.0× | Reuse tokenizer buffers, eliminate per-call slice allocations |
 
 ### Notes
 

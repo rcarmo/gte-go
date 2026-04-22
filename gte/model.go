@@ -57,6 +57,7 @@ type Model struct {
 	qkvProj      []float32
 	tokenBuf     []int
 	attnMaskBuf  []bool
+	basicBuf     []string
 }
 
 // LayerWeights mirrors a transformer block.
