@@ -98,6 +98,14 @@ Text: `"The stock market crashed"` (5 tokens), `go test -bench=BenchmarkEmbed -b
 | **Phase 2a** — fused QKV projection | 6.6 | 10.2× | 3 Sgemm calls → 1 with concatenated Q/K/V weights |
 | **Phase 2b** — contiguous head layout | 6.3 | 10.7× | QKV split writes directly to `[heads, seqLen, headDim]` layout |
 | **Phase 2c** — fast GELU approximation | — | — | *skipped: sigmoid GELU too inaccurate for this model* |
+| **Phase 2d** — zero-alloc serial sgemm | 6.5 | 10.4× | Custom serial matmul for small problems; gonum parallel for large |
+
+### Notes
+
+- **gonum BLAS** (pure Go) accounts for ~85% of remaining allocations via internal goroutine spawning
+- **OpenBLAS via CGo** (Phase 3) would eliminate those allocations and add SIMD, but `gonum.org/v1/netlib` has linking issues with Debian's OpenBLAS package
+- **PGO** tested but within noise at current sizes
+- Benchmark text: `"The stock market crashed"` (5 words → 7 tokens after CLS/SEP)
 
 ## License
 

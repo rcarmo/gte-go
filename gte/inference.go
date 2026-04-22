@@ -6,29 +6,26 @@ import (
 	"sync"
 
 	"gonum.org/v1/gonum/blas"
-	"gonum.org/v1/gonum/blas/blas32"
+	blasImpl32 "gonum.org/v1/gonum/blas/blas32"
 	"gonum.org/v1/gonum/blas/gonum"
 )
 
+var blasImpl gonum.Implementation
+
 func init() {
-	blas32.Use(gonum.Implementation{})
+	blasImpl32.Use(blasImpl)
 }
 
-// linear computes Y = X·W^T + bias using BLAS GEMM.
-// W is stored as [outDim, inDim] (row-major), so W^T gives us X·W^T = [seqLen, outDim].
+func blasTrans(t bool) blas.Transpose {
+	if t {
+		return blas.Trans
+	}
+	return blas.NoTrans
+}
+
+// linear computes Y = X·W^T + bias using our zero-alloc sgemm for small m.
 func linear(y, x, w, b []float32, seqLen, inDim, outDim int) {
-	// Y[seqLen, outDim] = X[seqLen, inDim] · W^T[inDim, outDim]
-	// GEMM: C = alpha*A*B + beta*C
-	// With B = W (row-major [outDim, inDim]), transposed => [inDim, outDim]
-	blas32.Implementation().Sgemm(
-		blas.NoTrans, blas.Trans,
-		seqLen, outDim, inDim,
-		1.0,
-		x, inDim,  // A = X [seqLen x inDim]
-		w, inDim,  // B = W [outDim x inDim], transposed
-		0.0,
-		y, outDim, // C = Y [seqLen x outDim]
-	)
+	sgemm(false, true, seqLen, outDim, inDim, 1.0, x, inDim, w, inDim, 0.0, y, outDim)
 
 	// Add bias
 	if b != nil {
@@ -207,15 +204,7 @@ func (m *Model) selfAttentionHeadBLAS(h, seqLen, headDim, hidden int, scale floa
 	// scores[seqLen, seqLen] = Q[seqLen, headDim] · K^T[headDim, seqLen]
 	scoreOff := h * seqLen * seqLen
 	scores := m.attnScores[scoreOff : scoreOff+seqLen*seqLen]
-	blas32.Implementation().Sgemm(
-		blas.NoTrans, blas.Trans,
-		seqLen, seqLen, headDim,
-		scale,
-		qBuf, headDim,
-		kBuf, headDim,
-		0.0,
-		scores, seqLen,
-	)
+	sgemm(false, true, seqLen, seqLen, headDim, scale, qBuf, headDim, kBuf, headDim, 0.0, scores, seqLen)
 
 	// Apply mask + softmax per row
 	for i := 0; i < seqLen; i++ {
@@ -231,15 +220,7 @@ func (m *Model) selfAttentionHeadBLAS(h, seqLen, headDim, hidden int, scale floa
 	}
 
 	// context[seqLen, headDim] = scores[seqLen, seqLen] · V[seqLen, headDim]
-	blas32.Implementation().Sgemm(
-		blas.NoTrans, blas.NoTrans,
-		seqLen, headDim, seqLen,
-		1.0,
-		scores, seqLen,
-		vBuf, headDim,
-		0.0,
-		cBuf, headDim,
-	)
+	sgemm(false, false, seqLen, headDim, seqLen, 1.0, scores, seqLen, vBuf, headDim, 0.0, cBuf, headDim)
 
 	// Re-interleave: per-head [seqLen, headDim] -> [seqLen, hidden]
 	for s := 0; s < seqLen; s++ {
