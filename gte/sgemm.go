@@ -6,10 +6,14 @@ package gte
 // sizes in GTE-small inference (m=seqLen ≤ ~20, k/n = 384 or 1536).
 // For large matrices it falls back to gonum BLAS.
 func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int, b []float32, ldb int, beta float32, c []float32, ldc int) {
-	// Use zero-alloc serial matmul only for truly small problems.
-	// gonum's parallel BLAS is faster for large n*k despite allocation overhead.
+	// Use OpenBLAS (CGo) for all matrix multiplies — zero Go allocations, SIMD-accelerated.
+	if openblasEnabled {
+		cblasSgemm(transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
+		return
+	}
+	// Fallback: zero-alloc serial matmul for small problems, gonum for large.
 	flops := m * n * k
-	if flops <= 200000 { // ~200K FMAs — covers QKV (7×1152×384=3M? no that's too big) and attention scores
+	if flops <= 200000 {
 		if !transA && transB {
 			sgemmNT(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
 			return
