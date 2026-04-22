@@ -30,6 +30,27 @@ func approxEq(a, b, tol float64) bool {
 
 func TestEmbedSimilarities(t *testing.T) {
 	model := loadTestModel(t)
+	checkEmbedSimilarities(t, model)
+}
+
+func TestEmbedSimilaritiesMmap(t *testing.T) {
+	path := os.Getenv("GTE_MODEL_PATH")
+	if path == "" {
+		path = "gte-small.gtemodel"
+	}
+	model, err := LoadMmap(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			t.Skipf("model file not found: %s", path)
+		}
+		t.Fatalf("load model: %v", err)
+	}
+	t.Cleanup(model.Close)
+	checkEmbedSimilarities(t, model)
+}
+
+func checkEmbedSimilarities(t *testing.T, model *Model) {
+	t.Helper()
 
 	sentences := []string{
 		"I love cats",

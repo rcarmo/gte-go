@@ -101,13 +101,16 @@ Text: `"The stock market crashed"` (5 tokens), `go test -bench=BenchmarkEmbed -b
 | **Phase 2d** — zero-alloc serial sgemm | 6.5 | 10.4× | Custom serial matmul for small problems; gonum parallel for large |
 | **Phase 3a** — OpenBLAS via CGo | 5.5 | 12.3× | Direct `cblas_sgemm` call, zero Go allocs, SIMD-accelerated |
 | **Phase 3b** — zero-alloc tokenizer | 5.6 | 12.0× | Reuse tokenizer buffers, eliminate per-call slice allocations |
+| **Phase 3c** — mmap model loading | 5.6 | 12.0× | `LoadMmap()` — 6× faster startup (0.03s vs 0.18s), ~127MB less heap |
 
 ### Notes
 
-- **gonum BLAS** (pure Go) accounts for ~85% of remaining allocations via internal goroutine spawning
-- **OpenBLAS via CGo** (Phase 3) would eliminate those allocations and add SIMD, but `gonum.org/v1/netlib` has linking issues with Debian's OpenBLAS package
-- **PGO** tested but within noise at current sizes
+- **OpenBLAS via CGo** is the single biggest Phase 3 win — eliminates 99% of per-embedding allocations and adds AVX2 SIMD
+- **Mmap loading** gives 6× faster startup and avoids copying 127MB of weights into Go heap
+- Inference latency is **5.5–5.6ms** — **12× faster than baseline** (67.4ms)
+- Per-embedding allocations: **12 allocs, 186 bytes** (down from 170 allocs, 15.6KB)
 - Benchmark text: `"The stock market crashed"` (5 words → 7 tokens after CLS/SEP)
+- Build with `CGO_ENABLED=1` for OpenBLAS; pure-Go fallback with `CGO_ENABLED=0`
 
 ## License
 

@@ -18,7 +18,23 @@ func BenchmarkEmbed(b *testing.B) {
 		b.Skipf("model load failed: %v", err)
 	}
 	defer model.Close()
+	benchEmbed(b, model)
+}
 
+func BenchmarkEmbedMmap(b *testing.B) {
+	path := os.Getenv("GTE_MODEL_PATH")
+	if path == "" {
+		path = "gte-small.gtemodel"
+	}
+	model, err := LoadMmap(path)
+	if err != nil {
+		b.Skipf("mmap model load failed: %v", err)
+	}
+	defer model.Close()
+	benchEmbed(b, model)
+}
+
+func benchEmbed(b *testing.B, model *Model) {
 	buf := make([]float32, model.Dim())
 	text := "The stock market crashed"
 

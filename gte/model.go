@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 )
 
 const (
@@ -28,6 +29,8 @@ type Model struct {
 	Intermediate int
 	MaxSeqLen    int
 	HeadDim      int
+
+	mmapData []byte // non-nil if loaded via LoadMmap
 
 	Vocab    []string
 	vocabMap map[string]int
@@ -299,8 +302,11 @@ func (m *Model) Dim() int { return m.HiddenSize }
 // MaxLen returns the maximum sequence length.
 func (m *Model) MaxLen() int { return m.MaxSeqLen }
 
-// Close clears references for GC.
+// Close clears references for GC and unmaps mmap'd data.
 func (m *Model) Close() {
+	if m.mmapData != nil {
+		syscall.Munmap(m.mmapData)
+	}
 	*m = Model{}
 }
 
