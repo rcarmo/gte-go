@@ -95,7 +95,7 @@ Text: `"The stock market crashed"` (5 tokens), `go test -bench=BenchmarkEmbed -b
 | **Phase 1a** — fast float32 math | 63.4 | 1.06× | Replace `math.Tanh/Exp/Sqrt` with float32 approximations |
 | **Phase 1b** — gonum BLAS `linear()` | 7.4 | 9.1× | Replace hand-rolled dot products with `blas32.Sgemm` |
 | **Phase 1c** — BLAS attention + scalar short-seq | 7.3 | 9.2× | BLAS Q·K^T and attn·V for long seqs; no goroutines for short seqs |
-| **Phase 2a** — fused QKV projection | — | — | *pending* |
+| **Phase 2a** — fused QKV projection | 6.6 | 10.2× | 3 Sgemm calls → 1 with concatenated Q/K/V weights |
 | **Phase 2b** — contiguous head layout | — | — | *pending* |
 | **Phase 2c** — fast GELU approximation | — | — | *skipped: sigmoid GELU too inaccurate for this model* |
 

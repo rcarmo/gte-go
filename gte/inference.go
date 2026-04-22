@@ -109,9 +109,14 @@ func (m *Model) selfAttention(layer *LayerWeights, seqLen int, attnMask []bool) 
 	heads := m.NumHeads
 	headDim := m.HeadDim
 
-	linear(m.qProj, m.hiddenStates, layer.QueryWeight, layer.QueryBias, seqLen, hidden, hidden)
-	linear(m.kProj, m.hiddenStates, layer.KeyWeight, layer.KeyBias, seqLen, hidden, hidden)
-	linear(m.vProj, m.hiddenStates, layer.ValueWeight, layer.ValueBias, seqLen, hidden, hidden)
+	linear(m.qkvProj, m.hiddenStates, layer.QKVWeight, layer.QKVBias, seqLen, hidden, 3*hidden)
+	// Split qkvProj [seqLen, 3*hidden] into Q, K, V [seqLen, hidden]
+	for s := 0; s < seqLen; s++ {
+		src := m.qkvProj[s*3*hidden:]
+		copy(m.qProj[s*hidden:s*hidden+hidden], src[0:hidden])
+		copy(m.kProj[s*hidden:s*hidden+hidden], src[hidden:2*hidden])
+		copy(m.vProj[s*hidden:s*hidden+hidden], src[2*hidden:3*hidden])
+	}
 
 	scale := fastInvSqrt(float32(headDim))
 
