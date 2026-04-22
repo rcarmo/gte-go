@@ -115,51 +115,125 @@ func (m *Model) selfAttention(layer *LayerWeights, seqLen int, attnMask []bool) 
 
 	scale := fastInvSqrt(float32(headDim))
 
-	var wg sync.WaitGroup
-	wg.Add(heads)
-	for h := 0; h < heads; h++ {
-		h := h
-		go func() {
-			headOffset := h * seqLen * seqLen
-			for i := 0; i < seqLen; i++ {
-				rowOffset := headOffset + i*seqLen
-				for j := 0; j < seqLen; j++ {
-					score := float32(0)
-					for d := 0; d < headDim; d++ {
-						qIdx := i*hidden + h*headDim + d
-						kIdx := j*hidden + h*headDim + d
-						score += m.qProj[qIdx] * m.kProj[kIdx]
-					}
-					score *= scale
-					if attnMask != nil && !attnMask[j] {
-						score = -10000
-					}
-					m.attnScores[rowOffset+j] = score
-				}
-				softmax(m.attnScores[rowOffset : rowOffset+seqLen])
-			}
-
-			for i := 0; i < seqLen; i++ {
-				for d := 0; d < headDim; d++ {
-					sum := float32(0)
-					for j := 0; j < seqLen; j++ {
-						attn := m.attnScores[headOffset+i*seqLen+j]
-						vIdx := j*hidden + h*headDim + d
-						sum += attn * m.vProj[vIdx]
-					}
-					m.attnOutput[i*hidden+h*headDim+d] = sum
-				}
-			}
-			wg.Done()
-		}()
+	// For short sequences, goroutine overhead exceeds parallelism benefit.
+	if seqLen < 32 {
+		for h := 0; h < heads; h++ {
+			m.selfAttentionHeadScalar(h, seqLen, headDim, hidden, scale, attnMask)
+		}
+	} else {
+		var wg sync.WaitGroup
+		wg.Add(heads)
+		for h := 0; h < heads; h++ {
+			h := h
+			go func() {
+				m.selfAttentionHeadBLAS(h, seqLen, headDim, hidden, scale, attnMask)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 
 	linear(m.tempHidden, m.attnOutput, layer.AttnOutputWeight, layer.AttnOutputBias, seqLen, hidden, hidden)
 	for i := 0; i < seqLen*hidden; i++ {
 		m.tempHidden[i] += m.hiddenStates[i]
 	}
 	layerNorm(m.hiddenStates, m.tempHidden, layer.AttnLnWeight, layer.AttnLnBias, seqLen, hidden)
+}
+
+// selfAttentionHeadScalar is the original scalar path, fast for short sequences.
+func (m *Model) selfAttentionHeadScalar(h, seqLen, headDim, hidden int, scale float32, attnMask []bool) {
+	headOffset := h * seqLen * seqLen
+	for i := 0; i < seqLen; i++ {
+		rowOffset := headOffset + i*seqLen
+		for j := 0; j < seqLen; j++ {
+			score := float32(0)
+			for d := 0; d < headDim; d++ {
+				qIdx := i*hidden + h*headDim + d
+				kIdx := j*hidden + h*headDim + d
+				score += m.qProj[qIdx] * m.kProj[kIdx]
+			}
+			score *= scale
+			if attnMask != nil && !attnMask[j] {
+				score = -10000
+			}
+			m.attnScores[rowOffset+j] = score
+		}
+		softmax(m.attnScores[rowOffset : rowOffset+seqLen])
+	}
+
+	for i := 0; i < seqLen; i++ {
+		for d := 0; d < headDim; d++ {
+			sum := float32(0)
+			for j := 0; j < seqLen; j++ {
+				attn := m.attnScores[headOffset+i*seqLen+j]
+				vIdx := j*hidden + h*headDim + d
+				sum += attn * m.vProj[vIdx]
+			}
+			m.attnOutput[i*hidden+h*headDim+d] = sum
+		}
+	}
+}
+
+// selfAttentionHeadBLAS uses Sgemm for Q·K^T and attn·V, better for longer sequences.
+func (m *Model) selfAttentionHeadBLAS(h, seqLen, headDim, hidden int, scale float32, attnMask []bool) {
+	off := h * seqLen * headDim
+	qBuf := m.qHeadBuf[off : off+seqLen*headDim]
+	kBuf := m.kHeadBuf[off : off+seqLen*headDim]
+	vBuf := m.vHeadBuf[off : off+seqLen*headDim]
+	cBuf := m.cHeadBuf[off : off+seqLen*headDim]
+
+	// De-interleave: [seqLen, hidden] -> per-head [seqLen, headDim]
+	for s := 0; s < seqLen; s++ {
+		srcOff := s*hidden + h*headDim
+		dstOff := s * headDim
+		copy(qBuf[dstOff:dstOff+headDim], m.qProj[srcOff:srcOff+headDim])
+		copy(kBuf[dstOff:dstOff+headDim], m.kProj[srcOff:srcOff+headDim])
+		copy(vBuf[dstOff:dstOff+headDim], m.vProj[srcOff:srcOff+headDim])
+	}
+
+	// scores[seqLen, seqLen] = Q[seqLen, headDim] · K^T[headDim, seqLen]
+	scoreOff := h * seqLen * seqLen
+	scores := m.attnScores[scoreOff : scoreOff+seqLen*seqLen]
+	blas32.Implementation().Sgemm(
+		blas.NoTrans, blas.Trans,
+		seqLen, seqLen, headDim,
+		scale,
+		qBuf, headDim,
+		kBuf, headDim,
+		0.0,
+		scores, seqLen,
+	)
+
+	// Apply mask + softmax per row
+	for i := 0; i < seqLen; i++ {
+		row := scores[i*seqLen : i*seqLen+seqLen]
+		if attnMask != nil {
+			for j := 0; j < seqLen; j++ {
+				if !attnMask[j] {
+					row[j] = -10000
+				}
+			}
+		}
+		softmax(row)
+	}
+
+	// context[seqLen, headDim] = scores[seqLen, seqLen] · V[seqLen, headDim]
+	blas32.Implementation().Sgemm(
+		blas.NoTrans, blas.NoTrans,
+		seqLen, headDim, seqLen,
+		1.0,
+		scores, seqLen,
+		vBuf, headDim,
+		0.0,
+		cBuf, headDim,
+	)
+
+	// Re-interleave: per-head [seqLen, headDim] -> [seqLen, hidden]
+	for s := 0; s < seqLen; s++ {
+		srcOff := s * headDim
+		dstOff := s*hidden + h*headDim
+		copy(m.attnOutput[dstOff:dstOff+headDim], cBuf[srcOff:srcOff+headDim])
+	}
 }
 
 func (m *Model) feedForward(layer *LayerWeights, seqLen int) {

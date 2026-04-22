@@ -50,6 +50,10 @@ type Model struct {
 	attnOutput   []float32
 	ffnHidden    []float32
 	tempHidden   []float32
+	qHeadBuf  []float32
+	kHeadBuf  []float32
+	vHeadBuf  []float32
+	cHeadBuf  []float32
 	tokenBuf     []int
 	attnMaskBuf  []bool
 }
@@ -255,6 +259,10 @@ func (m *Model) initBuffers() error {
 	m.attnOutput = make([]float32, maxSeq*hidden)
 	m.ffnHidden = make([]float32, maxSeq*inter)
 	m.tempHidden = make([]float32, maxSeq*hidden)
+	m.qHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
+	m.kHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
+	m.vHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
+	m.cHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
 
 	return nil
 }

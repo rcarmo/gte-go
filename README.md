@@ -2,7 +2,7 @@
 
 A pure Go implementation of the [GTE-small](https://huggingface.co/thenlper/gte-small) text embedding model. Produces 384-dimensional, L2-normalized embeddings suitable for similarity search and clustering, directly ported from [@antirez's C implementation](https://github.com/antirez/gte-pure-C).
 
-Performance is _not_ comparable to the C version, with embeddings generated ~3x slower due to Go's lack of low-level optimizations.
+Performance was originally ~3x slower than the C version due to Go's lack of low-level optimizations, but with BLAS-accelerated matrix operations and float32 fast-math approximations the gap has closed significantly (see [Optimization Log](#optimization-log) below).
 
 ## Quick Start
 
@@ -94,10 +94,10 @@ Text: `"The stock market crashed"` (5 tokens), `go test -bench=BenchmarkEmbed -b
 | **Baseline** (main) | 67.4 | — | Manual loop unrolling, `math.Tanh/Exp/Sqrt` via float64 |
 | **Phase 1a** — fast float32 math | 63.4 | 1.06× | Replace `math.Tanh/Exp/Sqrt` with float32 approximations |
 | **Phase 1b** — gonum BLAS `linear()` | 7.4 | 9.1× | Replace hand-rolled dot products with `blas32.Sgemm` |
-| **Phase 1c** — BLAS attention (Q·K^T, attn·V) | — | — | *pending* |
+| **Phase 1c** — BLAS attention + scalar short-seq | 7.3 | 9.2× | BLAS Q·K^T and attn·V for long seqs; no goroutines for short seqs |
 | **Phase 2a** — fused QKV projection | — | — | *pending* |
 | **Phase 2b** — contiguous head layout | — | — | *pending* |
-| **Phase 2c** — fast GELU approximation | — | — | *pending* |
+| **Phase 2c** — fast GELU approximation | — | — | *skipped: sigmoid GELU too inaccurate for this model* |
 
 ## License
 
