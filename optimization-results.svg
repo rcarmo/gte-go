@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="-apple-system,Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="barGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fb923c"/><stop offset="100%" stop-color="#ea580c"/></linearGradient>
+    <linearGradient id="barGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#16a34a"/></linearGradient>
+    <linearGradient id="barGrad3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#0891b2"/></linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="520" rx="12" fill="#1a1a2e"/>
+
+  <!-- Title -->
+  <text x="450" y="32" text-anchor="middle" font-size="18" font-weight="bold" fill="#e0e0e0">GTE-Go Optimization: 67.4ms → 5.5ms (12.3× speedup)</text>
+
+  <!-- Summary cards -->
+  <rect x="40" y="48" width="190" height="50" rx="8" fill="#16213e"/>
+  <text x="135" y="68" text-anchor="middle" font-size="10" fill="#888" letter-spacing="0.5">BASELINE</text>
+  <text x="135" y="88" text-anchor="middle" font-size="20" font-weight="bold" fill="#fb923c">67.4 ms</text>
+
+  <rect x="250" y="48" width="190" height="50" rx="8" fill="#16213e"/>
+  <text x="345" y="68" text-anchor="middle" font-size="10" fill="#888" letter-spacing="0.5">FINAL (OpenBLAS)</text>
+  <text x="345" y="88" text-anchor="middle" font-size="20" font-weight="bold" fill="#4ade80">5.5 ms</text>
+
+  <rect x="460" y="48" width="190" height="50" rx="8" fill="#16213e"/>
+  <text x="555" y="68" text-anchor="middle" font-size="10" fill="#888" letter-spacing="0.5">SPEEDUP</text>
+  <text x="555" y="88" text-anchor="middle" font-size="20" font-weight="bold" fill="#60a5fa">12.3×</text>
+
+  <rect x="670" y="48" width="190" height="50" rx="8" fill="#16213e"/>
+  <text x="765" y="68" text-anchor="middle" font-size="10" fill="#888" letter-spacing="0.5">ALLOCS/OP</text>
+  <text x="765" y="88" text-anchor="middle" font-size="20" font-weight="bold" fill="#c084fc">12 (was 170)</text>
+
+  <!-- Chart area: bars + line -->
+  <!-- Y axis (ms/op, log scale) -->
+  <line x1="80" y1="120" x2="80" y2="430" stroke="#444" stroke-width="1"/>
+  <text x="40" y="130" font-size="10" fill="#fb923c" text-anchor="middle">70</text>
+  <line x1="75" y1="128" x2="80" y2="128" stroke="#444"/>
+  <text x="40" y="220" font-size="10" fill="#fb923c" text-anchor="middle">20</text>
+  <line x1="75" y1="218" x2="80" y2="218" stroke="#444"/>
+  <text x="40" y="310" font-size="10" fill="#fb923c" text-anchor="middle">7</text>
+  <line x1="75" y1="308" x2="80" y2="308" stroke="#444"/>
+  <text x="40" y="370" font-size="10" fill="#fb923c" text-anchor="middle">5</text>
+  <line x1="75" y1="368" x2="80" y2="368" stroke="#444"/>
+  <text x="40" y="435" font-size="10" fill="#fb923c" text-anchor="middle">ms/op</text>
+
+  <!-- Y axis right (speedup) -->
+  <line x1="860" y1="120" x2="860" y2="430" stroke="#444" stroke-width="1"/>
+  <text x="885" y="430" font-size="10" fill="#60a5fa" text-anchor="middle">0×</text>
+  <text x="885" y="345" font-size="10" fill="#60a5fa" text-anchor="middle">4×</text>
+  <text x="885" y="260" font-size="10" fill="#60a5fa" text-anchor="middle">8×</text>
+  <text x="885" y="175" font-size="10" fill="#60a5fa" text-anchor="middle">12×</text>
+  <text x="885" y="130" font-size="10" fill="#60a5fa" text-anchor="middle">14×</text>
+
+  <!-- Grid lines -->
+  <line x1="80" y1="128" x2="860" y2="128" stroke="#333" stroke-width="0.5" stroke-dasharray="4,4"/>
+  <line x1="80" y1="218" x2="860" y2="218" stroke="#333" stroke-width="0.5" stroke-dasharray="4,4"/>
+  <line x1="80" y1="308" x2="860" y2="308" stroke="#333" stroke-width="0.5" stroke-dasharray="4,4"/>
+  <line x1="80" y1="368" x2="860" y2="368" stroke="#333" stroke-width="0.5" stroke-dasharray="4,4"/>
+
+  <!-- X axis -->
+  <line x1="80" y1="430" x2="860" y2="430" stroke="#444" stroke-width="1"/>
+
+  <!-- Bar positions: 9 bars, spacing ~85px, starting at x=100 -->
+  <!-- Heights mapped: 67.4→128, 63.4→140, 7.4→305, 7.3→308, 6.6→323, 6.3→330, 5.5→355, 5.6→352, 5.6→352 -->
+  <!-- Using log scale: y = 430 - (log(ms) - log(3)) / (log(80) - log(3)) * 310 -->
+
+  <!-- Bar: Baseline 67.4ms -->
+  <rect x="100" y="128" width="55" height="302" rx="4" fill="url(#barGrad1)" opacity="0.9"/>
+  <text x="127" y="122" text-anchor="middle" font-size="11" font-weight="bold" fill="#fb923c">67.4</text>
+
+  <!-- Bar: P1a fast math 63.4ms -->
+  <rect x="185" y="137" width="55" height="293" rx="4" fill="url(#barGrad1)" opacity="0.75"/>
+  <text x="212" y="131" text-anchor="middle" font-size="11" font-weight="bold" fill="#f59e0b">63.4</text>
+
+  <!-- Bar: P1b gonum BLAS 7.4ms -->
+  <rect x="270" y="305" width="55" height="125" rx="4" fill="url(#barGrad2)" opacity="0.9"/>
+  <text x="297" y="299" text-anchor="middle" font-size="11" font-weight="bold" fill="#4ade80">7.4</text>
+
+  <!-- Bar: P1c adaptive attn 7.3ms -->
+  <rect x="355" y="308" width="55" height="122" rx="4" fill="url(#barGrad2)" opacity="0.85"/>
+  <text x="382" y="302" text-anchor="middle" font-size="11" font-weight="bold" fill="#4ade80">7.3</text>
+
+  <!-- Bar: P2a fused QKV 6.6ms -->
+  <rect x="440" y="323" width="55" height="107" rx="4" fill="url(#barGrad2)" opacity="0.8"/>
+  <text x="467" y="317" text-anchor="middle" font-size="11" font-weight="bold" fill="#34d399">6.6</text>
+
+  <!-- Bar: P2b head layout 6.3ms -->
+  <rect x="525" y="330" width="55" height="100" rx="4" fill="url(#barGrad2)" opacity="0.75"/>
+  <text x="552" y="324" text-anchor="middle" font-size="11" font-weight="bold" fill="#34d399">6.3</text>
+
+  <!-- Bar: P3a OpenBLAS 5.5ms -->
+  <rect x="610" y="352" width="55" height="78" rx="4" fill="url(#barGrad3)" opacity="0.95"/>
+  <text x="637" y="346" text-anchor="middle" font-size="11" font-weight="bold" fill="#22d3ee">5.5</text>
+
+  <!-- Bar: P3b zero-alloc tok 5.6ms -->
+  <rect x="695" y="349" width="55" height="81" rx="4" fill="url(#barGrad3)" opacity="0.85"/>
+  <text x="722" y="343" text-anchor="middle" font-size="11" font-weight="bold" fill="#22d3ee">5.6</text>
+
+  <!-- Bar: P3c mmap 5.6ms -->
+  <rect x="780" y="349" width="55" height="81" rx="4" fill="url(#barGrad3)" opacity="0.75"/>
+  <text x="807" y="343" text-anchor="middle" font-size="11" font-weight="bold" fill="#22d3ee">5.6</text>
+
+  <!-- Speedup line -->
+  <!-- Y mapping: speedup 0→430, 14→120, so y = 430 - (val/14)*310 -->
+  <polyline fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linejoin="round"
+    points="127,408 212,407 297,229 382,227 467,205 552,194 637,158 722,165 807,165"/>
+  <circle cx="127" cy="408" r="4" fill="#60a5fa"/>
+  <circle cx="212" cy="407" r="4" fill="#60a5fa"/>
+  <circle cx="297" cy="229" r="5" fill="#60a5fa"/>
+  <circle cx="382" cy="227" r="4" fill="#60a5fa"/>
+  <circle cx="467" cy="205" r="4" fill="#60a5fa"/>
+  <circle cx="552" cy="194" r="4" fill="#60a5fa"/>
+  <circle cx="637" cy="158" r="5" fill="#60a5fa"/>
+  <circle cx="722" cy="165" r="4" fill="#60a5fa"/>
+  <circle cx="807" cy="165" r="4" fill="#60a5fa"/>
+
+  <!-- Speedup labels -->
+  <text x="127" y="400" text-anchor="middle" font-size="9" fill="#60a5fa">1.0×</text>
+  <text x="297" y="221" text-anchor="middle" font-size="9" font-weight="bold" fill="#60a5fa">9.1×</text>
+  <text x="467" y="197" text-anchor="middle" font-size="9" fill="#60a5fa">10.2×</text>
+  <text x="637" y="150" text-anchor="middle" font-size="9" font-weight="bold" fill="#60a5fa">12.3×</text>
+
+  <!-- X axis labels -->
+  <text x="127" y="450" text-anchor="middle" font-size="9" fill="#aaa">Baseline</text>
+  <text x="212" y="450" text-anchor="middle" font-size="9" fill="#aaa">P1a</text>
+  <text x="297" y="450" text-anchor="middle" font-size="9" fill="#aaa">P1b</text>
+  <text x="382" y="450" text-anchor="middle" font-size="9" fill="#aaa">P1c</text>
+  <text x="467" y="450" text-anchor="middle" font-size="9" fill="#aaa">P2a</text>
+  <text x="552" y="450" text-anchor="middle" font-size="9" fill="#aaa">P2b</text>
+  <text x="637" y="450" text-anchor="middle" font-size="9" fill="#aaa">P3a</text>
+  <text x="722" y="450" text-anchor="middle" font-size="9" fill="#aaa">P3b</text>
+  <text x="807" y="450" text-anchor="middle" font-size="9" fill="#aaa">P3c</text>
+
+  <!-- X axis sublabels -->
+  <text x="127" y="462" text-anchor="middle" font-size="7.5" fill="#666">manual loops</text>
+  <text x="212" y="462" text-anchor="middle" font-size="7.5" fill="#666">f32 math</text>
+  <text x="297" y="462" text-anchor="middle" font-size="7.5" fill="#666">gonum BLAS</text>
+  <text x="382" y="462" text-anchor="middle" font-size="7.5" fill="#666">scalar attn</text>
+  <text x="467" y="462" text-anchor="middle" font-size="7.5" fill="#666">fused QKV</text>
+  <text x="552" y="462" text-anchor="middle" font-size="7.5" fill="#666">head layout</text>
+  <text x="637" y="462" text-anchor="middle" font-size="7.5" fill="#666">OpenBLAS</text>
+  <text x="722" y="462" text-anchor="middle" font-size="7.5" fill="#666">tokenizer</text>
+  <text x="807" y="462" text-anchor="middle" font-size="7.5" fill="#666">mmap load</text>
+
+  <!-- Legend -->
+  <rect x="80" y="480" width="14" height="14" rx="3" fill="url(#barGrad1)"/>
+  <text x="100" y="492" font-size="10" fill="#ccc">ms/op (log scale)</text>
+  <line x1="200" y1="487" x2="230" y2="487" stroke="#60a5fa" stroke-width="2.5"/>
+  <circle cx="215" cy="487" r="3.5" fill="#60a5fa"/>
+  <text x="237" y="492" font-size="10" fill="#ccc">Speedup ×</text>
+
+  <text x="450" y="510" text-anchor="middle" font-size="9" fill="#555">i7-12700 · Go 1.26.2 · Linux/amd64 · GTE-small (384-dim, 12 layers) · "The stock market crashed" (7 tokens)</text>
+</svg>
