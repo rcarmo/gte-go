@@ -133,7 +133,7 @@ nt_k_reduce:
 nt_k_scalar:
     FMOVS   (R14), F4
     FMOVS   (R15), F5
-    FMADDS  F4, F5, F0, F0
+    FMADDS  F4, F0, F5, F0
     ADD     $4, R14
     ADD     $4, R15
     SUB     $1, R16, R16
@@ -271,7 +271,7 @@ nn_p1:
     FMOVS   (R14), F4
     FMOVS   (R15), F5
     FMULS   F31, F4, F4
-    FMADDS  F4, F5, F0, F0
+    FMADDS  F4, F0, F5, F0
     ADD     $4, R14
     ADD     R7, R15
     SUB     $1, R16, R16

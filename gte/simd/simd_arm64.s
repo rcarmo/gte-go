@@ -70,7 +70,7 @@ sdot_reduce:
 sdot_scalar:
     FMOVS   (R0), F5
     FMOVS   (R1), F6
-    FMADDS  F5, F6, F4, F4
+    FMADDS  F5, F4, F6, F4
     ADD     $4, R0
     ADD     $4, R1
     SUB     $1, R2, R2
@@ -118,7 +118,7 @@ saxpy_scalar:
 saxpy_scalar_loop:
     FMOVS   (R0), F4
     FMOVS   (R1), F5
-    FMADDS  F8, F4, F5, F5
+    FMADDS  F4, F5, F8, F5
     FMOVS   F5, (R1)
     ADD     $4, R0
     ADD     $4, R1
