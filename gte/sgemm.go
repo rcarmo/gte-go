@@ -1,26 +1,57 @@
 package gte
 
-import "github.com/rcarmo/gte-go/gte/simd"
+import (
+	"unsafe"
+
+	"github.com/rcarmo/gte-go/gte/simd"
+)
 
 // sgemm dispatches matrix multiplication to the best available backend.
 //
-// With CGO_ENABLED=1 and libopenblas-dev installed, this calls OpenBLAS
-// directly via CGo — zero Go allocations, AVX2 SIMD, ~7ms/embed.
-//
-// With CGO_ENABLED=0 (the default), this uses a custom zero-allocation
-// implementation with AVX2/FMA assembly for the inner dot product kernel
-// (sdot in simd_amd64.s).  Cache-blocked tiling keeps weight tiles in L1.
-// This avoids gonum's sgemmParallel goroutine allocations while matching
-// or exceeding its throughput for the matrix sizes in GTE-small.
+// Priority:
+// 1. OpenBLAS via CGo (CGO_ENABLED=1) — fastest, SIMD + threading
+// 2. Go assembly SGEMM (amd64 AVX2+FMA, arm64 NEON) — zero alloc, no C deps
+// 3. gonum pure-Go BLAS — fallback for other architectures
 func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int, b []float32, ldb int, beta float32, c []float32, ldc int) {
 	if openblasEnabled {
 		cblasSgemm(transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
 		return
 	}
-	// Pure Go: gonum's cache-blocked BLAS is hard to beat without a full
-	// assembly GEMM tile.  Our AVX2 sdot/saxpy kernels lose to gonum for
-	// matrix multiply due to per-call overhead (~15ns × thousands of calls).
-	// We use SIMD for non-GEMM operations (layerNorm, gelu, etc.) instead.
+	// Handle beta scaling (assembly kernels assume beta=1, i.e. C += ...)
+	if beta == 0 {
+		for i := 0; i < m; i++ {
+			row := c[i*ldc : i*ldc+n]
+			for j := range row {
+				row[j] = 0
+			}
+		}
+	} else if beta != 1 {
+		for i := 0; i < m; i++ {
+			row := c[i*ldc : i*ldc+n]
+			for j := range row {
+				row[j] *= beta
+			}
+		}
+	}
+	// Use SIMD assembly SGEMM when available (amd64/arm64)
+	if simd.HasSgemmAsm {
+		// NN kernel: our tiled assembly beats gonum (zero allocs, good cache use)
+		if !transA && !transB {
+			simd.SgemmNN(m, n, k, alpha,
+				unsafePtr(a), unsafePtr(b), unsafePtr(c),
+				lda, ldb, ldc)
+			return
+		}
+		// NT kernel: our per-dot-product approach loses to gonum's tiled kernel
+		// for large n. Use asm for small problems only.
+		if !transA && transB && m*n <= 4096 {
+			simd.SgemmNT(m, n, k, alpha,
+				unsafePtr(a), unsafePtr(b), unsafePtr(c),
+				lda, ldb, ldc)
+			return
+		}
+	}
+	// Fallback: gonum BLAS
 	blasImpl.Sgemm(blasTrans(transA), blasTrans(transB), m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
 }
 
@@ -74,4 +105,8 @@ func sgemmNNSimd(m, n, k int, alpha float32, a []float32, lda int, b []float32, 
 			simd.Saxpy(aVal, bRow, cRow)
 		}
 	}
+}
+
+func unsafePtr(s []float32) unsafe.Pointer {
+	return unsafe.Pointer(&s[0])
 }

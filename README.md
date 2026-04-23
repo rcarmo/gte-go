@@ -170,7 +170,10 @@ Multi-text benchmarks: 15 diverse sentences (1–44 words, inc. unicode), 20 sam
 
 - `gte/fastmath.go` — float32 approximations for tanh, exp, inverse sqrt
 - `gte/sgemm.go` — matmul dispatch: OpenBLAS (CGo) or gonum (pure Go)
-- `gte/simd/` — SIMD assembly kernels: AVX2/FMA for amd64, NEON/FMA for arm64, scalar fallback for others
+- `gte/simd/` — SIMD assembly kernels:
+  - `Sdot`, `Saxpy`: AVX2+FMA (amd64), NEON (arm64), scalar fallback
+  - `SgemmNT`, `SgemmNN`: full GEMM micro-kernels in assembly, zero allocations
+  - `simd_test.go`: thorough tests for all kernels at GTE-small matrix sizes
 - `gte/openblas_cgo.go` — direct CGo wrapper for `cblas_sgemm` (built only with `CGO_ENABLED=1`)
 - `gte/openblas_nocgo.go` — stub for pure-Go builds (`CGO_ENABLED=0`)
 - `gte/mmap.go` — memory-mapped model loading via `LoadMmap()`
