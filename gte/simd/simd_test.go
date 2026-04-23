@@ -506,3 +506,35 @@ func relErr(got, want float32) float32 {
 func absErr(got, want float32) float32 {
 	return float32(math.Abs(float64(got - want)))
 }
+
+func BenchmarkSgemmNTGebp_7x384x384(b *testing.B) {
+	if !HasSgemmAsm {
+		b.Skip("no SGEMM assembly")
+	}
+	rng := rand.New(rand.NewSource(42))
+	a := randMatrix(rng, 7, 384)
+	bm := randMatrix(rng, 384, 384)
+	c := make([]float32, 7*384)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		SgemmNTGebp(7, 384, 384, 1.0,
+			unsafe.Pointer(&a[0]), unsafe.Pointer(&bm[0]), unsafe.Pointer(&c[0]),
+			384, 384, 384)
+	}
+}
+
+func BenchmarkSgemmNTGebp_7x1536x384(b *testing.B) {
+	if !HasSgemmAsm {
+		b.Skip("no SGEMM assembly")
+	}
+	rng := rand.New(rand.NewSource(42))
+	a := randMatrix(rng, 7, 384)
+	bm := randMatrix(rng, 1536, 384)
+	c := make([]float32, 7*1536)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		SgemmNTGebp(7, 1536, 384, 1.0,
+			unsafe.Pointer(&a[0]), unsafe.Pointer(&bm[0]), unsafe.Pointer(&c[0]),
+			384, 384, 1536)
+	}
+}

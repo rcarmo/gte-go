@@ -35,17 +35,22 @@ func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int
 	}
 	// Use SIMD assembly SGEMM when available (amd64/arm64)
 	if simd.HasSgemmAsm {
-		// NN kernel: our tiled assembly beats gonum (zero allocs, good cache use)
+		// NT: for small m (typical GTE inference), gonum's tiled kernel beats
+		// both our direct NT and GEBP kernels. GEBP packing is too expensive
+		// for m≤16 (cost amortized over too few tiles). Direct NT loses to
+		// gonum's 4×4 micro-kernel. Use GEBP only for large m.
+		if !transA && transB {
+			if m > 32 {
+				simd.SgemmNTGebp(m, n, k, alpha,
+					unsafePtr(a), unsafePtr(b), unsafePtr(c),
+					lda, ldb, ldc)
+				return
+			}
+			// Fall through to gonum for small m
+		}
+		// NN: tiled assembly kernel, competitive at all sizes.
 		if !transA && !transB {
 			simd.SgemmNN(m, n, k, alpha,
-				unsafePtr(a), unsafePtr(b), unsafePtr(c),
-				lda, ldb, ldc)
-			return
-		}
-		// NT kernel: our per-dot-product approach loses to gonum's tiled kernel
-		// for large n. Use asm for small problems only.
-		if !transA && transB && m*n <= 4096 {
-			simd.SgemmNT(m, n, k, alpha,
 				unsafePtr(a), unsafePtr(b), unsafePtr(c),
 				lda, ldb, ldc)
 			return
