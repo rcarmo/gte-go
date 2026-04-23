@@ -14,14 +14,38 @@ func ensureGebpBuf(size int) []float32 {
 }
 
 func packBNT(b []float32, ldb, jj, nr, k int, bp []float32) {
-	for p := 0; p < k; p++ {
-		off := p * gebpNR
-		d := 0
-		for ; d < nr; d++ {
-			bp[off+d] = b[(jj+d)*ldb+p]
+	// Process 4 B rows at a time for better cache locality.
+	// Each B row is contiguous in memory; reading 4 rows at stride ldb
+	// then interleaving into bp is more cache-friendly than the naive
+	// column-by-column approach.
+	d := 0
+	for ; d+4 <= nr; d += 4 {
+		row0 := b[(jj+d)*ldb:]
+		row1 := b[(jj+d+1)*ldb:]
+		row2 := b[(jj+d+2)*ldb:]
+		row3 := b[(jj+d+3)*ldb:]
+		for p := 0; p < k; p++ {
+			off := p*gebpNR + d
+			bp[off] = row0[p]
+			bp[off+1] = row1[p]
+			bp[off+2] = row2[p]
+			bp[off+3] = row3[p]
 		}
-		for ; d < gebpNR; d++ {
-			bp[off+d] = 0
+	}
+	// Remaining rows
+	for ; d < nr; d++ {
+		row := b[(jj+d)*ldb:]
+		for p := 0; p < k; p++ {
+			bp[p*gebpNR+d] = row[p]
+		}
+	}
+	// Zero-pad
+	if nr < gebpNR {
+		for p := 0; p < k; p++ {
+			off := p*gebpNR + nr
+			for d := nr; d < gebpNR; d++ {
+				bp[off+d-nr] = 0
+			}
 		}
 	}
 }
