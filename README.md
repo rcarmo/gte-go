@@ -170,7 +170,7 @@ Multi-text benchmarks: 15 diverse sentences (1–44 words, inc. unicode), 20 sam
 
 - `gte/fastmath.go` — float32 approximations for tanh, exp, inverse sqrt
 - `gte/sgemm.go` — matmul dispatch: OpenBLAS (CGo) or gonum (pure Go)
-- `gte/simd/` — AVX2/FMA assembly kernels (`Sdot`, `Saxpy`) in a sub-package to coexist with CGo
+- `gte/simd/` — SIMD assembly kernels: AVX2/FMA for amd64, NEON/FMA for arm64, scalar fallback for others
 - `gte/openblas_cgo.go` — direct CGo wrapper for `cblas_sgemm` (built only with `CGO_ENABLED=1`)
 - `gte/openblas_nocgo.go` — stub for pure-Go builds (`CGO_ENABLED=0`)
 - `gte/mmap.go` — memory-mapped model loading via `LoadMmap()`
@@ -187,8 +187,8 @@ Multi-text benchmarks: 15 diverse sentences (1–44 words, inc. unicode), 20 sam
 The default is **`CGO_ENABLED=0`** (set in the Makefile).
 This produces a single static binary that runs anywhere with no system
 library dependencies.  The pure-Go path uses gonum's cache-blocked BLAS
-for matrix multiplication and AVX2/FMA assembly (via `gte/simd/`) for
-attention dot products.  Together they deliver 5× over the original baseline.
+for matrix multiplication and SIMD assembly (AVX2/FMA on amd64, NEON on arm64)
+for attention dot products.  Together they deliver 5× over the original baseline.
 
 For maximum throughput, opt in to OpenBLAS:
 
