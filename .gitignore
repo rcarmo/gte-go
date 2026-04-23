@@ -12,3 +12,4 @@ test_gte
 __pycache__/
 *.pyc
 *.npy
+core.*
