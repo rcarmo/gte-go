@@ -538,3 +538,178 @@ func BenchmarkSgemmNTGebp_7x1536x384(b *testing.B) {
 			384, 384, 1536)
 	}
 }
+
+// --- SgemmNTGebp tests ---
+
+func TestSgemmNTGebpIdentity(t *testing.T) {
+	if !HasSgemmAsm {
+		t.Skip("no SGEMM assembly on this arch")
+	}
+	a := []float32{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}
+	b := make([]float32, 16)
+	copy(b, a)
+	c := make([]float32, 16)
+	SgemmNTGebp(4, 4, 4, 1.0, unsafe.Pointer(&a[0]), unsafe.Pointer(&b[0]), unsafe.Pointer(&c[0]), 4, 4, 4)
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			want := float32(0)
+			if i == j {
+				want = 1
+			}
+			if absErr(c[i*4+j], want) > 1e-6 {
+				t.Errorf("C[%d,%d]=%v, want %v", i, j, c[i*4+j], want)
+			}
+		}
+	}
+}
+
+func TestSgemmNTGebpSmall(t *testing.T) {
+	if !HasSgemmAsm {
+		t.Skip("no SGEMM assembly")
+	}
+	m, n, k := 3, 5, 4
+	a := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	b := []float32{1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1}
+	alpha := float32(2.0)
+	got := make([]float32, m*n)
+	ref := make([]float32, m*n)
+	SgemmNTGebp(m, n, k, alpha, unsafe.Pointer(&a[0]), unsafe.Pointer(&b[0]), unsafe.Pointer(&got[0]), k, k, n)
+	naiveSgemmNT(m, n, k, alpha, a, k, b, k, ref, n)
+	for i := range got {
+		if relErr(got[i], ref[i]) > 1e-5 {
+			t.Errorf("C[%d]=%v, want %v", i, got[i], ref[i])
+		}
+	}
+}
+
+func TestSgemmNTGebpGTESizes(t *testing.T) {
+	if !HasSgemmAsm {
+		t.Skip("no SGEMM assembly")
+	}
+	sizes := []struct {
+		m, n, k int
+		name    string
+	}{
+		{7, 1152, 384, "QKV fused"},
+		{7, 384, 384, "attn output"},
+		{7, 1536, 384, "FFN up"},
+		{7, 384, 1536, "FFN down"},
+		{1, 384, 384, "single token"},
+		{16, 384, 384, "longer seq"},
+		{64, 384, 384, "large m (uses GEBP path)"},
+	}
+	for _, sz := range sizes {
+		t.Run(sz.name, func(t *testing.T) {
+			rng := rand.New(rand.NewSource(42))
+			a := randMatrix(rng, sz.m, sz.k)
+			b := randMatrix(rng, sz.n, sz.k)
+			got := make([]float32, sz.m*sz.n)
+			ref := make([]float32, sz.m*sz.n)
+			alpha := float32(0.125)
+			SgemmNTGebp(sz.m, sz.n, sz.k, alpha,
+				unsafe.Pointer(&a[0]), unsafe.Pointer(&b[0]), unsafe.Pointer(&got[0]),
+				sz.k, sz.k, sz.n)
+			naiveSgemmNT(sz.m, sz.n, sz.k, alpha, a, sz.k, b, sz.k, ref, sz.n)
+			maxErr := float32(0)
+			for i := range got {
+				e := absErr(got[i], ref[i])
+				if e > maxErr {
+					maxErr = e
+				}
+			}
+			tol := float32(1e-3)
+			if maxErr > tol {
+				t.Errorf("maxErr=%v > tol=%v", maxErr, tol)
+			}
+		})
+	}
+}
+
+func TestSgemmNTGebpWithPrefilledC(t *testing.T) {
+	if !HasSgemmAsm {
+		t.Skip("no SGEMM assembly")
+	}
+	m, n, k := 3, 8, 16
+	rng := rand.New(rand.NewSource(99))
+	a := randMatrix(rng, m, k)
+	b := randMatrix(rng, n, k)
+	alpha := float32(0.5)
+	got := randMatrix(rng, m, n)
+	ref := make([]float32, m*n)
+	copy(ref, got)
+	SgemmNTGebp(m, n, k, alpha, unsafe.Pointer(&a[0]), unsafe.Pointer(&b[0]), unsafe.Pointer(&got[0]), k, k, n)
+	naiveSgemmNT(m, n, k, alpha, a, k, b, k, ref, n)
+	for i := range got {
+		if relErr(got[i], ref[i]) > 1e-4 {
+			t.Errorf("C[%d]=%v, want %v", i, got[i], ref[i])
+		}
+	}
+}
+
+// --- packBNT tests ---
+
+func TestPackBNT(t *testing.T) {
+	// B = [[1,2,3],[4,5,6]]  (2 rows, 3 cols = n=2, k=3)
+	b := []float32{1, 2, 3, 4, 5, 6}
+	bp := make([]float32, 3*16) // k=3, NR=16
+	packBNT(b, 3, 0, 2, 3, bp)
+
+	// bp[p*16 + d] = B[d, p]
+	// bp[0*16+0]=B[0,0]=1, bp[0*16+1]=B[1,0]=4
+	// bp[1*16+0]=B[0,1]=2, bp[1*16+1]=B[1,1]=5
+	// bp[2*16+0]=B[0,2]=3, bp[2*16+1]=B[1,2]=6
+	expected := map[int]float32{
+		0*16 + 0: 1, 0*16 + 1: 4,
+		1*16 + 0: 2, 1*16 + 1: 5,
+		2*16 + 0: 3, 2*16 + 1: 6,
+	}
+	for idx, want := range expected {
+		if bp[idx] != want {
+			t.Errorf("bp[%d]=%v, want %v", idx, bp[idx], want)
+		}
+	}
+	// Check zero-padding
+	for p := 0; p < 3; p++ {
+		for d := 2; d < 16; d++ {
+			if bp[p*16+d] != 0 {
+				t.Errorf("bp[%d*16+%d]=%v, want 0 (padding)", p, d, bp[p*16+d])
+			}
+		}
+	}
+}
+
+// --- Saxpy edge cases ---
+
+func TestSaxpyUnaligned(t *testing.T) {
+	for _, n := range []int{9, 15, 17, 33, 100, 383} {
+		x := make([]float32, n)
+		y := make([]float32, n)
+		ref := make([]float32, n)
+		rng := rand.New(rand.NewSource(int64(n)))
+		for i := range x {
+			x[i] = rng.Float32()*2 - 1
+			y[i] = rng.Float32()*2 - 1
+			ref[i] = y[i]
+		}
+		Saxpy(0.7, x, y)
+		naiveSaxpy(0.7, x, ref)
+		for i := range y {
+			if relErr(y[i], ref[i]) > 1e-4 {
+				t.Errorf("n=%d i=%d: got=%v want=%v", n, i, y[i], ref[i])
+			}
+		}
+	}
+}
+
+func TestSaxpyZeroAlpha(t *testing.T) {
+	x := []float32{1, 2, 3, 4, 5, 6, 7, 8}
+	y := []float32{10, 20, 30, 40, 50, 60, 70, 80}
+	orig := make([]float32, len(y))
+	copy(orig, y)
+	Saxpy(0, x, y)
+	for i := range y {
+		if y[i] != orig[i] {
+			t.Errorf("i=%d: y changed with alpha=0: got=%v want=%v", i, y[i], orig[i])
+		}
+	}
+}
