@@ -6,7 +6,7 @@ The default build is **pure Go with SIMD assembly** — a single static binary w
 
 | Platform | Default (pure Go) | OpenBLAS CGo (opt-in) |
 |---|---|---|
-| **amd64** (i7-12700) | **10 ms/embed** (6.7×) | **5.5 ms** (12.3×) |
+| **amd64** (i7-12700) | **6.4 ms/embed** (10.5×) | **5.5 ms** (12.3×) |
 | **arm64** (CIX P1 CD8160) | **20 ms/embed** (5.2×¹) | — |
 
 ¹ vs gonum-only baseline on same hardware.  See [Optimization Report](#optimization-report) for full details.
@@ -63,7 +63,7 @@ AVX2 SIMD + zero allocations — yes, we cheated, but that's life.
 
 | Build | `Load()` | `LoadMmap()` | Recommendation |
 |---|---|---|---|
-| Pure Go (amd64) | 10 ms, 0.25s startup | slower ⚠️ | **Use `Load()`** |
+| Pure Go (amd64) | 6.4 ms, 0.25s startup | slower ⚠️ | **Use `Load()`** |
 | Pure Go (arm64) | 20 ms, 0.25s startup | 20 ms, 0.01s startup | Either works |
 | OpenBLAS CGo | 5.5 ms, 0.20s startup | 5.5 ms, 0.01s startup | **Use `LoadMmap()`** |
 
@@ -94,7 +94,7 @@ make go-bench                                          # inference benchmark
 | + gonum BLAS | 7.4 | 9.1× | 1,610 | 159,437 |
 | + adaptive attention | 7.3 | 9.2× | 1,454 | 145,410 |
 | + fused QKV + contiguous heads | 6.3 | 10.7× | 1,406 | 142,338 |
-| **+ blocked FMA tile asm** | **10** | **6.7×** | **12** | **188** |
+| **+ SIMD asm (gonum NT + NN asm)** | **6.4** | **10.5×** | **1,404** | **141,114** |
 | + OpenBLAS CGo | **5.5** | **12.3×** | **12** | **186** |
 
 #### arm64 — CIX P1 CD8160 (OrangePi 6 Plus), 12 cores, ~2GHz
