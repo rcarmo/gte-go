@@ -713,3 +713,64 @@ func TestSaxpyZeroAlpha(t *testing.T) {
 		}
 	}
 }
+
+// --- SgemmNTBlockedFMA tests ---
+
+func TestSgemmNTBlockedFMAIdentity(t *testing.T) {
+	if !HasSgemmAsm {
+		t.Skip("no assembly")
+	}
+	a := []float32{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}
+	b := make([]float32, 16)
+	copy(b, a)
+	c := make([]float32, 16)
+	SgemmNTBlockedFMA(4, 4, 4, 1.0, unsafe.Pointer(&a[0]), unsafe.Pointer(&b[0]), unsafe.Pointer(&c[0]), 4, 4, 4)
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			want := float32(0)
+			if i == j {
+				want = 1
+			}
+			if absErr(c[i*4+j], want) > 1e-6 {
+				t.Errorf("C[%d,%d]=%v, want %v", i, j, c[i*4+j], want)
+			}
+		}
+	}
+}
+
+func TestSgemmNTBlockedFMAGTESizes(t *testing.T) {
+	if !HasSgemmAsm {
+		t.Skip("no assembly")
+	}
+	sizes := []struct{ m, n, k int; name string }{
+		{7, 1152, 384, "QKV fused"},
+		{7, 384, 384, "attn output"},
+		{7, 1536, 384, "FFN up"},
+		{7, 384, 1536, "FFN down"},
+		{1, 384, 384, "single token"},
+	}
+	for _, sz := range sizes {
+		t.Run(sz.name, func(t *testing.T) {
+			rng := rand.New(rand.NewSource(42))
+			a := randMatrix(rng, sz.m, sz.k)
+			b := randMatrix(rng, sz.n, sz.k)
+			got := make([]float32, sz.m*sz.n)
+			ref := make([]float32, sz.m*sz.n)
+			alpha := float32(0.125)
+			SgemmNTBlockedFMA(sz.m, sz.n, sz.k, alpha,
+				unsafe.Pointer(&a[0]), unsafe.Pointer(&b[0]), unsafe.Pointer(&got[0]),
+				sz.k, sz.k, sz.n)
+			naiveSgemmNT(sz.m, sz.n, sz.k, alpha, a, sz.k, b, sz.k, ref, sz.n)
+			maxErr := float32(0)
+			for i := range got {
+				e := absErr(got[i], ref[i])
+				if e > maxErr {
+					maxErr = e
+				}
+			}
+			if maxErr > 1e-3 {
+				t.Errorf("maxErr=%v > 1e-3", maxErr)
+			}
+		})
+	}
+}

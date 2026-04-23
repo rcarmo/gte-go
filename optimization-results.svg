@@ -8,7 +8,7 @@
 
   <rect width="900" height="560" rx="12" fill="#1a1a2e"/>
 
-  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e0e0e0">GTE-Go: 67.4ms → 5.5ms (amd64) / 63ms (arm64)</text>
+  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e0e0e0">GTE-Go: 67.4ms → 5.5ms (amd64) / 20ms (arm64)</text>
 
   <!-- Summary -->
   <rect x="30" y="44" width="130" height="46" rx="8" fill="#16213e"/>
@@ -17,7 +17,7 @@
 
   <rect x="175" y="44" width="130" height="46" rx="8" fill="#16213e"/>
   <text x="240" y="60" text-anchor="middle" font-size="9" fill="#888">PURE GO+SIMD</text>
-  <text x="240" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">6.6 ms</text>
+  <text x="240" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">10 ms</text>
 
   <rect x="320" y="44" width="130" height="46" rx="8" fill="#16213e"/>
   <text x="385" y="60" text-anchor="middle" font-size="9" fill="#888">OPENBLAS CGO</text>
@@ -25,11 +25,11 @@
 
   <rect x="465" y="44" width="130" height="46" rx="8" fill="#16213e"/>
   <text x="530" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 NEON</text>
-  <text x="530" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">63 ms</text>
+  <text x="530" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">20 ms</text>
 
   <rect x="610" y="44" width="130" height="46" rx="8" fill="#16213e"/>
   <text x="675" y="60" text-anchor="middle" font-size="9" fill="#888">SPEEDUP</text>
-  <text x="675" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">10–12×</text>
+  <text x="675" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">5–12×</text>
 
   <rect x="755" y="44" width="120" height="46" rx="8" fill="#16213e"/>
   <text x="815" y="60" text-anchor="middle" font-size="9" fill="#888">ALLOCS/OP</text>
@@ -89,9 +89,9 @@
   <!-- Separator -->
   <line x1="505" y1="110" x2="505" y2="460" stroke="#444" stroke-dasharray="2,4"/>
 
-  <!-- Final: Pure Go amd64 6.6 -->
-  <rect x="525" y="292" width="55" height="158" rx="3" fill="url(#g4)" opacity="0.9"/>
-  <text x="552" y="286" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">6.6</text>
+  <!-- Final: Pure Go amd64 10 -->
+  <rect x="525" y="260" width="55" height="190" rx="3" fill="url(#g4)" opacity="0.9"/>
+  <text x="552" y="254" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">10</text>
   <text x="552" y="465" text-anchor="middle" font-size="8" fill="#a78bfa">Pure Go</text>
   <text x="552" y="475" text-anchor="middle" font-size="7" fill="#666">amd64</text>
 
@@ -101,9 +101,9 @@
   <text x="622" y="465" text-anchor="middle" font-size="8" fill="#22d3ee">OpenBLAS</text>
   <text x="622" y="475" text-anchor="middle" font-size="7" fill="#666">amd64</text>
 
-  <!-- Final: Pure Go arm64 63 -->
-  <rect x="665" y="188" width="55" height="262" rx="3" fill="url(#g4)" opacity="0.7"/>
-  <text x="692" y="182" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">63</text>
+  <!-- Final: Pure Go arm64 20 -->
+  <rect x="665" y="225" width="55" height="225" rx="3" fill="url(#g4)" opacity="0.7"/>
+  <text x="692" y="219" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">20</text>
   <text x="692" y="465" text-anchor="middle" font-size="8" fill="#a78bfa">NEON</text>
   <text x="692" y="475" text-anchor="middle" font-size="7" fill="#666">arm64</text>
 

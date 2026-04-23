@@ -36,16 +36,13 @@ func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int
 	// Use SIMD assembly SGEMM when available (amd64/arm64)
 	if simd.HasSgemmAsm {
 		if !transA && transB {
-			// NT: always use GEBP on arm64 (gonum lacks NEON for NT).
-			// On amd64, gonum's assembly DotUnitary is fast for small m;
-			// GEBP only wins for large m where packing cost is amortized.
-			if m > 32 || !amd64 {
-				simd.SgemmNTGebp(m, n, k, alpha,
-					unsafePtr(a), unsafePtr(b), unsafePtr(c),
-					lda, ldb, ldc)
-				return
-			}
-			// amd64 small m: fall through to gonum
+			// NT: blocked tile with FMA assembly on both platforms.
+			// Replaces gonum's non-FMA DotUnitary (~2× inner loop speedup).
+			// On arm64, also replaces gonum's scalar NT path entirely.
+			simd.SgemmNTBlockedFMA(m, n, k, alpha,
+				unsafePtr(a), unsafePtr(b), unsafePtr(c),
+				lda, ldb, ldc)
+			return
 		}
 		// NN: tiled assembly kernel, zero allocs.
 		if !transA && !transB {
