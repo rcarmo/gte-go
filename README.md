@@ -153,7 +153,14 @@ to 12/186B.
 | Phase 3c – mmap loading | 5.6 | 12.0× | 12 | 186 |
 
 All benchmarks on 12th Gen Intel Core i7-12700, 6 P-cores, Linux/amd64, Go 1.26.2.
-Benchmark text: `"The stock market crashed"` (5 words → 7 tokens after CLS/SEP).
+15 diverse texts (1–44 words, inc. unicode), 20 samples, `GOGC=off`.
+
+| Variant | Median ms/embed | vs baseline | Allocs/op | B/op |
+|---|---|---|---|---|
+| Baseline (main, before optimization) | 67.4 | — | 170 | 15,598 |
+| Pure Go, `Load()` | **13.5** | **5.0×** | 12 | 186 |
+| OpenBLAS CGo, `Load()` | **7.4** | **9.1×** | 12 | 186 |
+| OpenBLAS CGo, `LoadMmap()` | **7.5** | **9.0×** | 12 | 186 |
 
 ### Files added
 
@@ -165,9 +172,23 @@ Benchmark text: `"The stock market crashed"` (5 words → 7 tokens after CLS/SEP
 
 ### Build notes
 
-- **`CGO_ENABLED=1`** (default on Linux): uses OpenBLAS for SIMD-accelerated matmul
-- **`CGO_ENABLED=0`**: falls back to gonum's pure-Go BLAS (still ~9× faster than baseline)
+- **`CGO_ENABLED=1`** (default on Linux): uses OpenBLAS for SIMD-accelerated matmul.
+  This is the fastest path (**~7.4ms/embed**) but requires `libopenblas-dev` and a C compiler.
+  Yes, we cheated — but that's life.
+- **`CGO_ENABLED=0`**: falls back to gonum's pure-Go BLAS (~13.5ms/embed with `Load()`).
+  Fully portable, no C dependencies, still **5× faster than the original baseline**.
 - OpenBLAS dependency: `sudo apt install libopenblas-dev`
+
+### `Load()` vs `LoadMmap()` guidance
+
+| Build | `Load()` | `LoadMmap()` | Recommendation |
+|---|---|---|---|
+| CGo + OpenBLAS | 7.4 ms, 0.15s startup | 7.5 ms, 0.01s startup | **Use `LoadMmap()`** — same speed, 12× faster startup |
+| Pure Go (no CGo) | 13.5 ms, 0.24s startup | 33.7 ms, 0.01s startup | **Use `Load()`** — mmap triggers page faults with gonum's tiled reads |
+
+`LoadMmap()` is ideal for OpenBLAS builds (fast startup, low RSS, same inference speed).
+With pure Go builds, gonum's cache-blocked BLAS reads weight data in a scattered pattern
+that causes constant page faults on mmap'd memory — use `Load()` instead.
 
 ## License
 
