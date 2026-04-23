@@ -3,6 +3,7 @@ package gte
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/rcarmo/gte-go/gte/simd"
@@ -325,6 +326,67 @@ func (m *Model) EmbedBatch(texts []string) ([][]float32, error) {
 		copyBuf := make([]float32, m.HiddenSize)
 		copy(copyBuf, buf)
 		result[i] = copyBuf
+	}
+	return result, nil
+}
+
+// EmbedBatchParallel embeds multiple texts concurrently using n worker goroutines.
+// Each worker has its own inference buffers but shares the model weights.
+// n=0 uses runtime.NumCPU().
+func (m *Model) EmbedBatchParallel(texts []string, n int) ([][]float32, error) {
+	if m == nil {
+		return nil, errors.New("model is nil")
+	}
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	if n <= 0 {
+		n = runtime.NumCPU()
+	}
+	if n > len(texts) {
+		n = len(texts)
+	}
+
+	// Create worker models sharing weights but with independent buffers
+	workers := make([]*Model, n)
+	for i := range workers {
+		w := *m // shallow copy: shares weight slices
+		w.initBuffers()
+		workers[i] = &w
+	}
+
+	result := make([][]float32, len(texts))
+	errs := make([]error, len(texts))
+
+	var wg sync.WaitGroup
+	textCh := make(chan int, len(texts))
+	for i := range texts {
+		textCh <- i
+	}
+	close(textCh)
+
+	for w := 0; w < n; w++ {
+		wg.Add(1)
+		go func(worker *Model) {
+			defer wg.Done()
+			buf := make([]float32, worker.HiddenSize)
+			for idx := range textCh {
+				if err := worker.EmbedTo(texts[idx], buf); err != nil {
+					errs[idx] = err
+					continue
+				}
+				out := make([]float32, worker.HiddenSize)
+				copy(out, buf)
+				result[idx] = out
+			}
+		}(workers[w])
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			return nil, fmt.Errorf("embed %d: %w", i, err)
+		}
 	}
 	return result, nil
 }
