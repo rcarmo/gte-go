@@ -2,7 +2,7 @@
 
 A pure Go implementation of the [GTE-small](https://huggingface.co/thenlper/gte-small) text embedding model. Produces 384-dimensional, L2-normalized embeddings suitable for similarity search and clustering, directly ported from [@antirez's C implementation](https://github.com/antirez/gte-pure-C).
 
-Performance is _not_ comparable to the C version, with embeddings generated ~3x slower due to Go's lack of low-level optimizations.
+Performance was originally ~3x slower than the C version due to Go's lack of low-level optimizations, but with BLAS-accelerated matrix operations and float32 fast-math approximations the gap has closed significantly (see [Optimization Log](#optimization-log) below).
 
 ## Quick Start
 
@@ -60,7 +60,12 @@ S3:  0.727  0.722  1.000
 ```go
 import "github.com/rcarmo/gte-go/gte"
 
+// Standard loading (copies weights into Go heap)
 model, _ := gte.Load("gte-small.gtemodel")
+defer model.Close()
+
+// Memory-mapped loading (6× faster startup, ~127MB less heap)
+model, _ := gte.LoadMmap("gte-small.gtemodel")
 defer model.Close()
 
 emb, _ := model.Embed("Hello world")          // []float32 length 384, L2-normalized
@@ -83,6 +88,86 @@ make run-bench   # convenient single-model benchmark with human-readable output
 - `gte/gte_test.go` embeds three reference sentences and checks cosine similarities within a small tolerance.
 - `gte/bench_test.go` reports per-embedding latency (ms/op_avg) via `go test`.
 - `cmd/bench` prints total calls, average ms per embedding (derived from total_time/total_calls), and throughput.
+
+## Optimization Report
+
+The original implementation used hand-unrolled scalar loops for all matrix operations
+and Go's `math.Tanh/Exp/Sqrt` functions (which round-trip through float64). A
+systematic 3-phase optimization brought inference latency from **67.4ms to 5.5ms**
+— a **12.3× speedup** — while reducing per-embedding allocations from 170/15.6KB
+to 12/186B.
+
+![Optimization results](optimization-results.svg)
+
+### Phase 1 — BLAS and fast math (67.4 → 7.3ms, 9.2×)
+
+- **1a – float32 fast math:** Replaced `math.Tanh`, `math.Exp`, and `math.Sqrt`
+  (all float64) with float32 polynomial/Padé approximations (`fastTanh`,
+  `fastExp`, `fastInvSqrt`). Modest 6% gain because `linear()` dominates.
+- **1b – gonum BLAS:** Replaced the hand-rolled `linear()` dot-product loops
+  with `blas32.Sgemm` from gonum. This was the single largest improvement:
+  **67.4 → 7.4ms (9.1×)**. Even gonum's pure-Go BLAS with cache blocking
+  massively outperforms scalar code.
+- **1c – adaptive attention:** Added a seqLen-based threshold: short sequences
+  (< 32 tokens) use a scalar attention path without goroutine overhead;
+  longer sequences use BLAS for Q·K^T and attn·V.
+
+### Phase 2 — structural optimizations (7.3 → 6.3ms, 10.7×)
+
+- **2a – fused QKV projection:** Concatenated Q/K/V weight matrices into a
+  single `[3*hidden, hidden]` array at load time. One Sgemm call replaces three,
+  reducing call overhead and improving cache utilization.
+- **2b – contiguous head layout:** Changed the QKV split to write directly into
+  `[numHeads, seqLen, headDim]` buffers instead of the interleaved
+  `[seqLen, numHeads*headDim]` layout. Eliminates strided access in the
+  attention inner loops and removes the de-interleave copy for the BLAS path.
+- **2c – sigmoid GELU:** Tested but abandoned — the approximation error
+  exceeded the model's cosine similarity tolerance by 0.006.
+
+### Phase 3 — system-level optimizations (6.3 → 5.5ms, 12.3×)
+
+- **3a – OpenBLAS via CGo:** Wrote a direct CGo wrapper for `cblas_sgemm`,
+  bypassing gonum entirely. This eliminated **99% of per-embedding allocations**
+  (1406 → 14) because gonum's pure-Go `sgemmParallel` spawns goroutines
+  internally. OpenBLAS also provides AVX2 SIMD acceleration.
+- **3b – zero-alloc tokenizer:** Refactored `basicTokenize` and
+  `wordpieceTokenize` to reuse pre-allocated buffers instead of allocating
+  slices per call. Reduced remaining allocs from 14 → 12, 1.4KB → 186B.
+- **3c – mmap model loading:** Added `LoadMmap()` which memory-maps the
+  `.gtemodel` file. Weight slices point directly into the mapped region —
+  no copy into Go heap. Result: **6× faster startup** (0.03s vs 0.18s)
+  and ~127MB less resident memory. Inference latency is unchanged.
+
+### Results summary
+
+| Stage | ms/op | vs baseline | Allocs/op | B/op |
+|---|---|---|---|---|
+| **Baseline** | 67.4 | — | 170 | 15,598 |
+| Phase 1a – fast math | 63.4 | 1.06× | 170 | 15,598 |
+| Phase 1b – gonum BLAS | 7.4 | 9.1× | 1,610 | 159,437 |
+| Phase 1c – adaptive attn | 7.3 | 9.2× | 1,454 | 145,410 |
+| Phase 2a – fused QKV | 6.6 | 10.2× | 1,406 | 142,338 |
+| Phase 2b – head layout | 6.3 | 10.7× | 1,406 | 142,338 |
+| Phase 3a – OpenBLAS CGo | **5.5** | **12.3×** | **14** | **1,410** |
+| Phase 3b – zero-alloc tok | 5.6 | 12.0× | 12 | 186 |
+| Phase 3c – mmap loading | 5.6 | 12.0× | 12 | 186 |
+
+All benchmarks on 12th Gen Intel Core i7-12700, 6 P-cores, Linux/amd64, Go 1.26.2.
+Benchmark text: `"The stock market crashed"` (5 words → 7 tokens after CLS/SEP).
+
+### Files added
+
+- `gte/fastmath.go` — float32 approximations for tanh, exp, inverse sqrt
+- `gte/sgemm.go` — zero-alloc serial matmul + OpenBLAS dispatch layer
+- `gte/openblas_cgo.go` — direct CGo wrapper for `cblas_sgemm`
+- `gte/mmap.go` — memory-mapped model loading via `LoadMmap()`
+- `optimization-results.svg` — benchmark results chart
+
+### Build notes
+
+- **`CGO_ENABLED=1`** (default on Linux): uses OpenBLAS for SIMD-accelerated matmul
+- **`CGO_ENABLED=0`**: falls back to gonum's pure-Go BLAS (still ~9× faster than baseline)
+- OpenBLAS dependency: `sudo apt install libopenblas-dev`
 
 ## License
 

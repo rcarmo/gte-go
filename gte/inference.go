@@ -3,34 +3,37 @@ package gte
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sync"
+
+	"gonum.org/v1/gonum/blas"
+	blasImpl32 "gonum.org/v1/gonum/blas/blas32"
+	"gonum.org/v1/gonum/blas/gonum"
 )
 
+var blasImpl gonum.Implementation
+
+func init() {
+	blasImpl32.Use(blasImpl)
+}
+
+func blasTrans(t bool) blas.Transpose {
+	if t {
+		return blas.Trans
+	}
+	return blas.NoTrans
+}
+
+// linear computes Y = X·W^T + bias using our zero-alloc sgemm for small m.
 func linear(y, x, w, b []float32, seqLen, inDim, outDim int) {
-	for s := 0; s < seqLen; s++ {
-		xRow := x[s*inDim:][:inDim]
-		yRow := y[s*outDim:][:outDim]
-		for o := 0; o < outDim; o++ {
-			wRow := w[o*inDim:][:inDim]
-			sum := float32(0)
-			if b != nil {
-				sum = b[o]
+	sgemm(false, true, seqLen, outDim, inDim, 1.0, x, inDim, w, inDim, 0.0, y, outDim)
+
+	// Add bias
+	if b != nil {
+		for s := 0; s < seqLen; s++ {
+			yRow := y[s*outDim:][:outDim]
+			for o := 0; o < outDim; o++ {
+				yRow[o] += b[o]
 			}
-			i := 0
-			for ; i+16 <= inDim; i += 16 {
-				sum += xRow[i]*wRow[i] + xRow[i+1]*wRow[i+1] + xRow[i+2]*wRow[i+2] + xRow[i+3]*wRow[i+3]
-				sum += xRow[i+4]*wRow[i+4] + xRow[i+5]*wRow[i+5] + xRow[i+6]*wRow[i+6] + xRow[i+7]*wRow[i+7]
-				sum += xRow[i+8]*wRow[i+8] + xRow[i+9]*wRow[i+9] + xRow[i+10]*wRow[i+10] + xRow[i+11]*wRow[i+11]
-				sum += xRow[i+12]*wRow[i+12] + xRow[i+13]*wRow[i+13] + xRow[i+14]*wRow[i+14] + xRow[i+15]*wRow[i+15]
-			}
-			for ; i+4 <= inDim; i += 4 {
-				sum += xRow[i]*wRow[i] + xRow[i+1]*wRow[i+1] + xRow[i+2]*wRow[i+2] + xRow[i+3]*wRow[i+3]
-			}
-			for ; i < inDim; i++ {
-				sum += xRow[i] * wRow[i]
-			}
-			yRow[o] = sum
 		}
 	}
 }
@@ -50,7 +53,7 @@ func layerNorm(out, x, gamma, beta []float32, seqLen, hidden int) {
 			variance += diff * diff
 		}
 		variance /= float32(hidden)
-		stdInv := float32(1.0 / math.Sqrt(float64(variance+layerNormEps)))
+		stdInv := fastInvSqrt(variance + layerNormEps)
 
 		for i := 0; i < hidden; i++ {
 			out[rowStart+i] = gamma[i]*(x[rowStart+i]-mean)*stdInv + beta[i]
@@ -62,7 +65,7 @@ func gelu(x []float32) {
 	const c = float32(0.7978845608) // sqrt(2/pi)
 	for i := range x {
 		v := x[i]
-		x[i] = 0.5 * v * (1 + float32(math.Tanh(float64(c*(v+0.044715*v*v*v)))))
+		x[i] = 0.5 * v * (1 + fastTanh(c*(v+0.044715*v*v*v)))
 	}
 }
 
@@ -75,7 +78,7 @@ func softmax(x []float32) {
 	}
 	sum := float32(0)
 	for i, v := range x {
-		x[i] = float32(math.Exp(float64(v - maxVal)))
+		x[i] = fastExp(v - maxVal)
 		sum += x[i]
 	}
 	inv := 1 / sum
@@ -89,11 +92,10 @@ func l2Normalize(x []float32) {
 	for _, v := range x {
 		norm += v * v
 	}
-	norm = float32(math.Sqrt(float64(norm)))
 	if norm == 0 {
 		return
 	}
-	inv := 1 / norm
+	inv := fastInvSqrt(norm)
 	for i := range x {
 		x[i] *= inv
 	}
@@ -104,57 +106,128 @@ func (m *Model) selfAttention(layer *LayerWeights, seqLen int, attnMask []bool) 
 	heads := m.NumHeads
 	headDim := m.HeadDim
 
-	linear(m.qProj, m.hiddenStates, layer.QueryWeight, layer.QueryBias, seqLen, hidden, hidden)
-	linear(m.kProj, m.hiddenStates, layer.KeyWeight, layer.KeyBias, seqLen, hidden, hidden)
-	linear(m.vProj, m.hiddenStates, layer.ValueWeight, layer.ValueBias, seqLen, hidden, hidden)
-
-	scale := float32(1.0 / math.Sqrt(float64(headDim)))
-
-	var wg sync.WaitGroup
-	wg.Add(heads)
-	for h := 0; h < heads; h++ {
-		h := h
-		go func() {
-			headOffset := h * seqLen * seqLen
-			for i := 0; i < seqLen; i++ {
-				rowOffset := headOffset + i*seqLen
-				for j := 0; j < seqLen; j++ {
-					score := float32(0)
-					for d := 0; d < headDim; d++ {
-						qIdx := i*hidden + h*headDim + d
-						kIdx := j*hidden + h*headDim + d
-						score += m.qProj[qIdx] * m.kProj[kIdx]
-					}
-					score *= scale
-					if attnMask != nil && !attnMask[j] {
-						score = -10000
-					}
-					m.attnScores[rowOffset+j] = score
-				}
-				softmax(m.attnScores[rowOffset : rowOffset+seqLen])
-			}
-
-			for i := 0; i < seqLen; i++ {
-				for d := 0; d < headDim; d++ {
-					sum := float32(0)
-					for j := 0; j < seqLen; j++ {
-						attn := m.attnScores[headOffset+i*seqLen+j]
-						vIdx := j*hidden + h*headDim + d
-						sum += attn * m.vProj[vIdx]
-					}
-					m.attnOutput[i*hidden+h*headDim+d] = sum
-				}
-			}
-			wg.Done()
-		}()
+	linear(m.qkvProj, m.hiddenStates, layer.QKVWeight, layer.QKVBias, seqLen, hidden, 3*hidden)
+	// De-interleave QKV into contiguous per-head layout:
+	//   qkvProj: [seqLen, 3*hidden] with hidden = heads*headDim
+	//   qHeadBuf/kHeadBuf/vHeadBuf: [heads, seqLen, headDim] (contiguous per-head)
+	for s := 0; s < seqLen; s++ {
+		src := m.qkvProj[s*3*hidden:]
+		for h := 0; h < heads; h++ {
+			hoff := h * seqLen * headDim
+			dst := hoff + s*headDim
+			srcH := h * headDim
+			copy(m.qHeadBuf[dst:dst+headDim], src[srcH:srcH+headDim])
+			copy(m.kHeadBuf[dst:dst+headDim], src[hidden+srcH:hidden+srcH+headDim])
+			copy(m.vHeadBuf[dst:dst+headDim], src[2*hidden+srcH:2*hidden+srcH+headDim])
+		}
 	}
-	wg.Wait()
+
+	scale := fastInvSqrt(float32(headDim))
+
+	// For short sequences, goroutine overhead exceeds parallelism benefit.
+	if seqLen < 32 {
+		for h := 0; h < heads; h++ {
+			m.selfAttentionHeadScalar(h, seqLen, headDim, hidden, scale, attnMask)
+		}
+	} else {
+		var wg sync.WaitGroup
+		wg.Add(heads)
+		for h := 0; h < heads; h++ {
+			h := h
+			go func() {
+				m.selfAttentionHeadBLAS(h, seqLen, headDim, hidden, scale, attnMask)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
 
 	linear(m.tempHidden, m.attnOutput, layer.AttnOutputWeight, layer.AttnOutputBias, seqLen, hidden, hidden)
 	for i := 0; i < seqLen*hidden; i++ {
 		m.tempHidden[i] += m.hiddenStates[i]
 	}
 	layerNorm(m.hiddenStates, m.tempHidden, layer.AttnLnWeight, layer.AttnLnBias, seqLen, hidden)
+}
+
+// selfAttentionHeadScalar is the original scalar path, now using contiguous per-head buffers.
+func (m *Model) selfAttentionHeadScalar(h, seqLen, headDim, hidden int, scale float32, attnMask []bool) {
+	hoff := h * seqLen * headDim
+	qBuf := m.qHeadBuf[hoff : hoff+seqLen*headDim]
+	kBuf := m.kHeadBuf[hoff : hoff+seqLen*headDim]
+	vBuf := m.vHeadBuf[hoff : hoff+seqLen*headDim]
+
+	headOffset := h * seqLen * seqLen
+	for i := 0; i < seqLen; i++ {
+		rowOffset := headOffset + i*seqLen
+		qi := qBuf[i*headDim : i*headDim+headDim]
+		for j := 0; j < seqLen; j++ {
+			score := float32(0)
+			kj := kBuf[j*headDim : j*headDim+headDim]
+			for d := 0; d < headDim; d++ {
+				score += qi[d] * kj[d]
+			}
+			score *= scale
+			if attnMask != nil && !attnMask[j] {
+				score = -10000
+			}
+			m.attnScores[rowOffset+j] = score
+		}
+		softmax(m.attnScores[rowOffset : rowOffset+seqLen])
+	}
+
+	cBuf := m.cHeadBuf[hoff : hoff+seqLen*headDim]
+	for i := 0; i < seqLen; i++ {
+		for d := 0; d < headDim; d++ {
+			sum := float32(0)
+			for j := 0; j < seqLen; j++ {
+				sum += m.attnScores[headOffset+i*seqLen+j] * vBuf[j*headDim+d]
+			}
+			cBuf[i*headDim+d] = sum
+		}
+	}
+
+	// Re-interleave: per-head [seqLen, headDim] -> [seqLen, hidden]
+	for s := 0; s < seqLen; s++ {
+		copy(m.attnOutput[s*hidden+h*headDim:s*hidden+h*headDim+headDim], cBuf[s*headDim:s*headDim+headDim])
+	}
+}
+
+// selfAttentionHeadBLAS uses Sgemm for Q·K^T and attn·V, better for longer sequences.
+// Head buffers are already in contiguous [seqLen, headDim] layout.
+func (m *Model) selfAttentionHeadBLAS(h, seqLen, headDim, hidden int, scale float32, attnMask []bool) {
+	off := h * seqLen * headDim
+	qBuf := m.qHeadBuf[off : off+seqLen*headDim]
+	kBuf := m.kHeadBuf[off : off+seqLen*headDim]
+	vBuf := m.vHeadBuf[off : off+seqLen*headDim]
+	cBuf := m.cHeadBuf[off : off+seqLen*headDim]
+
+	// scores[seqLen, seqLen] = Q[seqLen, headDim] · K^T[headDim, seqLen]
+	scoreOff := h * seqLen * seqLen
+	scores := m.attnScores[scoreOff : scoreOff+seqLen*seqLen]
+	sgemm(false, true, seqLen, seqLen, headDim, scale, qBuf, headDim, kBuf, headDim, 0.0, scores, seqLen)
+
+	// Apply mask + softmax per row
+	for i := 0; i < seqLen; i++ {
+		row := scores[i*seqLen : i*seqLen+seqLen]
+		if attnMask != nil {
+			for j := 0; j < seqLen; j++ {
+				if !attnMask[j] {
+					row[j] = -10000
+				}
+			}
+		}
+		softmax(row)
+	}
+
+	// context[seqLen, headDim] = scores[seqLen, seqLen] · V[seqLen, headDim]
+	sgemm(false, false, seqLen, headDim, seqLen, 1.0, scores, seqLen, vBuf, headDim, 0.0, cBuf, headDim)
+
+	// Re-interleave: per-head [seqLen, headDim] -> [seqLen, hidden]
+	for s := 0; s < seqLen; s++ {
+		srcOff := s * headDim
+		dstOff := s*hidden + h*headDim
+		copy(m.attnOutput[dstOff:dstOff+headDim], cBuf[srcOff:srcOff+headDim])
+	}
 }
 
 func (m *Model) feedForward(layer *LayerWeights, seqLen int) {

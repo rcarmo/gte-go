@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 )
 
 const (
@@ -29,6 +30,8 @@ type Model struct {
 	MaxSeqLen    int
 	HeadDim      int
 
+	mmapData []byte // non-nil if loaded via LoadMmap
+
 	Vocab    []string
 	vocabMap map[string]int
 
@@ -50,8 +53,14 @@ type Model struct {
 	attnOutput   []float32
 	ffnHidden    []float32
 	tempHidden   []float32
+	qHeadBuf  []float32
+	kHeadBuf  []float32
+	vHeadBuf  []float32
+	cHeadBuf  []float32
+	qkvProj      []float32
 	tokenBuf     []int
 	attnMaskBuf  []bool
+	basicBuf     []string
 }
 
 // LayerWeights mirrors a transformer block.
@@ -73,6 +82,10 @@ type LayerWeights struct {
 	FfnOutputBias   []float32
 	FfnLnWeight     []float32
 	FfnLnBias       []float32
+
+	// Fused QKV: [3*hidden, hidden] weight and [3*hidden] bias, built at load time.
+	QKVWeight []float32
+	QKVBias   []float32
 }
 
 // Load reads a .gtemodel file into memory.
@@ -130,6 +143,7 @@ func Load(modelPath string) (*Model, error) {
 	if err := m.initBuffers(); err != nil {
 		return nil, err
 	}
+	m.fuseQKV()
 
 	return m, nil
 }
@@ -241,6 +255,24 @@ func (m *Model) readPooler(r *bufio.Reader) error {
 	return nil
 }
 
+// fuseQKV concatenates Q, K, V weights and biases into single arrays per layer.
+func (m *Model) fuseQKV() {
+	h := m.HiddenSize
+	for l := range m.Layers {
+		lw := &m.Layers[l]
+		// Weight: [3*h, h] = concat(Q[h,h], K[h,h], V[h,h])
+		lw.QKVWeight = make([]float32, 3*h*h)
+		copy(lw.QKVWeight[0:h*h], lw.QueryWeight)
+		copy(lw.QKVWeight[h*h:2*h*h], lw.KeyWeight)
+		copy(lw.QKVWeight[2*h*h:3*h*h], lw.ValueWeight)
+		// Bias: [3*h]
+		lw.QKVBias = make([]float32, 3*h)
+		copy(lw.QKVBias[0:h], lw.QueryBias)
+		copy(lw.QKVBias[h:2*h], lw.KeyBias)
+		copy(lw.QKVBias[2*h:3*h], lw.ValueBias)
+	}
+}
+
 func (m *Model) initBuffers() error {
 	maxSeq := m.MaxSeqLen
 	hidden := m.HiddenSize
@@ -255,6 +287,11 @@ func (m *Model) initBuffers() error {
 	m.attnOutput = make([]float32, maxSeq*hidden)
 	m.ffnHidden = make([]float32, maxSeq*inter)
 	m.tempHidden = make([]float32, maxSeq*hidden)
+	m.qkvProj = make([]float32, maxSeq*3*hidden)
+	m.qHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
+	m.kHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
+	m.vHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
+	m.cHeadBuf = make([]float32, heads*maxSeq*m.HeadDim)
 
 	return nil
 }
@@ -265,8 +302,11 @@ func (m *Model) Dim() int { return m.HiddenSize }
 // MaxLen returns the maximum sequence length.
 func (m *Model) MaxLen() int { return m.MaxSeqLen }
 
-// Close clears references for GC.
+// Close clears references for GC and unmaps mmap'd data.
 func (m *Model) Close() {
+	if m.mmapData != nil {
+		syscall.Munmap(m.mmapData)
+	}
 	*m = Model{}
 }
 

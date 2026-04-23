@@ -12,9 +12,9 @@ func isWhitespace(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
 
-func basicTokenize(text string) []string {
+func basicTokenize(text string, buf []string) []string {
 	data := []byte(text)
-	tokens := make([]string, 0, 64)
+	tokens := buf[:0]
 	i := 0
 	for i < len(data) {
 		for i < len(data) && isWhitespace(data[i]) {
@@ -37,11 +37,10 @@ func basicTokenize(text string) []string {
 	return tokens
 }
 
-func (m *Model) wordpieceTokenize(word string) []int {
+func (m *Model) wordpieceTokenize(word string, out []int) []int {
 	if word == "" {
-		return nil
+		return out
 	}
-	subtokens := make([]int, 0, len(word))
 	start := 0
 	for start < len(word) {
 		end := len(word)
@@ -60,18 +59,18 @@ func (m *Model) wordpieceTokenize(word string) []int {
 			end--
 		}
 		if found < 0 {
-			subtokens = append(subtokens, tokenUNK)
+			out = append(out, tokenUNK)
 			start++
 		} else {
-			subtokens = append(subtokens, found)
+			out = append(out, found)
 			start = end
 		}
 	}
-	return subtokens
+	return out
 }
 
 func (m *Model) tokenize(text string) ([]int, []bool) {
-	basic := basicTokenize(text)
+	basic := basicTokenize(text, m.basicBuf)
 
 	if cap(m.tokenBuf) < m.MaxSeqLen {
 		m.tokenBuf = make([]int, 0, m.MaxSeqLen)
@@ -88,12 +87,11 @@ func (m *Model) tokenize(text string) ([]int, []bool) {
 		if len(tokens) >= m.MaxSeqLen-1 {
 			break
 		}
-		sub := m.wordpieceTokenize(tok)
-		for _, id := range sub {
-			if len(tokens) >= m.MaxSeqLen-1 {
-				break
-			}
-			tokens = append(tokens, id)
+		prevLen := len(tokens)
+		tokens = m.wordpieceTokenize(tok, tokens)
+		if len(tokens) > m.MaxSeqLen-1 {
+			tokens = tokens[:prevLen] // drop token that would overflow
+			break
 		}
 	}
 	if len(tokens) < m.MaxSeqLen {
