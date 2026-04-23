@@ -1,11 +1,17 @@
 package gte
 
-// sgemm dispatches to OpenBLAS (CGo) or a zero-allocation pure-Go implementation.
+// sgemm dispatches matrix multiplication to the best available backend.
 //
-// The pure-Go path uses cache-blocked tiling (64×64 blocks ≈ 16KB per tile,
-// fits in L1) and manual 8-way loop unrolling. It avoids gonum's sgemmParallel
-// which allocates goroutines per block — those allocations dominate at the
-// matrix sizes used in GTE-small inference.
+// With CGO_ENABLED=1 and libopenblas-dev installed, this calls OpenBLAS
+// directly via CGo — zero Go allocations, AVX2 SIMD, ~7ms/embed.
+//
+// With CGO_ENABLED=0 (the default), this falls back to gonum's pure-Go
+// cache-blocked BLAS.  gonum's internal sgemmSerial/sgemmParallel is
+// remarkably well-optimized: our hand-rolled blocked kernels couldn't
+// match it (150ms vs 14ms).  gonum's only downside is that sgemmParallel
+// allocates goroutines per block (~1400 allocs/embed), but the actual
+// compute throughput is excellent.  For a zero-dependency static binary
+// that runs anywhere, 14ms/embed (5× vs baseline) is a good trade-off.
 func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int, b []float32, ldb int, beta float32, c []float32, ldc int) {
 	if openblasEnabled {
 		cblasSgemm(transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
