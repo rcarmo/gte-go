@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rcarmo/gte-go/gte/simd"
 	"gonum.org/v1/gonum/blas"
 	blasImpl32 "gonum.org/v1/gonum/blas/blas32"
 	"gonum.org/v1/gonum/blas/gonum"
@@ -161,12 +162,8 @@ func (m *Model) selfAttentionHeadScalar(h, seqLen, headDim, hidden int, scale fl
 		rowOffset := headOffset + i*seqLen
 		qi := qBuf[i*headDim : i*headDim+headDim]
 		for j := 0; j < seqLen; j++ {
-			score := float32(0)
 			kj := kBuf[j*headDim : j*headDim+headDim]
-			for d := 0; d < headDim; d++ {
-				score += qi[d] * kj[d]
-			}
-			score *= scale
+			score := scale * simd.Sdot(qi, kj)
 			if attnMask != nil && !attnMask[j] {
 				score = -10000
 			}

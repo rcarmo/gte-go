@@ -2,7 +2,7 @@
 
 A pure Go implementation of the [GTE-small](https://huggingface.co/thenlper/gte-small) text embedding model. Produces 384-dimensional, L2-normalized embeddings suitable for similarity search and clustering, directly ported from [@antirez's C implementation](https://github.com/antirez/gte-pure-C).
 
-The default build is **pure Go** — a single static binary with no C dependencies — and runs at **~14ms per embedding** (5× faster than the original). For maximum throughput, an optional OpenBLAS CGo backend pushes that to **~7ms** (see [Optimization Report](#optimization-report) below).
+The default build is **pure Go** — a single static binary with no C dependencies — and runs at **~13ms per embedding** (5× faster than the original) using gonum BLAS with AVX2/FMA SIMD assembly for attention dot products. For maximum throughput, an optional OpenBLAS CGo backend pushes that to **~7ms** (see [Optimization Report](#optimization-report) below).
 
 ## Quick Start
 
@@ -142,10 +142,10 @@ to 12/186B.
 | Build | Load method | Median ms/embed | vs baseline | Allocs/op | B/op |
 |---|---|---|---|---|---|
 | Baseline (before optimization) | `Load()` | 67.4 | — | 170 | 15,598 |
-| **Pure Go (default)** | **`Load()`** | **13.9** | **4.9×** | **12** | **186** |
-| OpenBLAS CGo (opt-in) | `Load()` | 7.4 | 9.1× | 12 | 186 |
+| **Pure Go + SIMD (default)** | **`Load()`** | **13.0** | **5.2×** | **12** | **186** |
+| OpenBLAS CGo (opt-in) | `Load()` | 7.3 | 9.2× | 12 | 186 |
 | OpenBLAS CGo (opt-in) | `LoadMmap()` | 7.2 | 9.4× | 12 | 186 |
-| Pure Go | `LoadMmap()` | 34.4 | 2.0× ⚠️ | 12 | 186 |
+| Pure Go + SIMD | `LoadMmap()` | 32.9 | 2.0× ⚠️ | 12 | 186 |
 
 ⚠️ `LoadMmap()` + pure Go is slow because gonum's tiled BLAS triggers page faults on mmap'd memory.
 
@@ -170,6 +170,7 @@ Multi-text benchmarks: 15 diverse sentences (1–44 words, inc. unicode), 20 sam
 
 - `gte/fastmath.go` — float32 approximations for tanh, exp, inverse sqrt
 - `gte/sgemm.go` — matmul dispatch: OpenBLAS (CGo) or gonum (pure Go)
+- `gte/simd/` — AVX2/FMA assembly kernels (`Sdot`, `Saxpy`) in a sub-package to coexist with CGo
 - `gte/openblas_cgo.go` — direct CGo wrapper for `cblas_sgemm` (built only with `CGO_ENABLED=1`)
 - `gte/openblas_nocgo.go` — stub for pure-Go builds (`CGO_ENABLED=0`)
 - `gte/mmap.go` — memory-mapped model loading via `LoadMmap()`
@@ -180,13 +181,14 @@ Multi-text benchmarks: 15 diverse sentences (1–44 words, inc. unicode), 20 sam
 
 | Mode | Command | ms/embed | Dependencies | Binary |
 |---|---|---|---|---|
-| **Pure Go (default)** | `make` | ~14 | None | Static, portable |
+| **Pure Go + SIMD (default)** | `make` | ~13 | None | Static, portable |
 | OpenBLAS CGo | `CGO_ENABLED=1 make` or `make go-build-cgo` | ~7 | `gcc`, `libopenblas-dev` | Dynamic, links libopenblas |
 
 The default is **`CGO_ENABLED=0`** (set in the Makefile).
 This produces a single static binary that runs anywhere with no system
 library dependencies.  The pure-Go path uses gonum's cache-blocked BLAS
-implementation, which is already 5× faster than the original baseline.
+for matrix multiplication and AVX2/FMA assembly (via `gte/simd/`) for
+attention dot products.  Together they deliver 5× over the original baseline.
 
 For maximum throughput, opt in to OpenBLAS:
 
@@ -203,8 +205,8 @@ that gonum's parallel BLAS introduces (~1400 allocs/embed → 12).
 
 | Build | `Load()` | `LoadMmap()` | Recommendation |
 |---|---|---|---|
-| **Pure Go** | 13.9 ms, 0.24s startup | 34.4 ms, 0.01s startup | **Use `Load()`** |
-| **OpenBLAS CGo** | 7.4 ms, 0.20s startup | 7.2 ms, 0.01s startup | **Use `LoadMmap()`** |
+| **Pure Go + SIMD** | 13.0 ms, 0.25s startup | 32.9 ms, 0.01s startup | **Use `Load()`** |
+| **OpenBLAS CGo** | 7.3 ms, 0.22s startup | 7.2 ms, 0.01s startup | **Use `LoadMmap()`** |
 
 `LoadMmap()` maps the model file directly — 12× faster startup and ~127MB
 less heap.  With OpenBLAS this is free performance.  With pure Go, gonum's

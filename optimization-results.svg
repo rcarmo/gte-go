@@ -9,7 +9,7 @@
   <rect width="900" height="560" rx="12" fill="#1a1a2e"/>
 
   <!-- Title -->
-  <text x="450" y="32" text-anchor="middle" font-size="17" font-weight="bold" fill="#e0e0e0">GTE-Go Optimization: 67.4ms → 7.2ms (OpenBLAS) / 13.9ms (pure Go)</text>
+  <text x="450" y="32" text-anchor="middle" font-size="17" font-weight="bold" fill="#e0e0e0">GTE-Go Optimization: 67.4ms → 7.2ms (OpenBLAS) / 13.0ms (pure Go+SIMD)</text>
 
   <!-- Summary cards -->
   <rect x="20" y="48" width="160" height="50" rx="8" fill="#16213e"/>
@@ -17,8 +17,8 @@
   <text x="100" y="86" text-anchor="middle" font-size="19" font-weight="bold" fill="#fb923c">67.4 ms</text>
 
   <rect x="195" y="48" width="160" height="50" rx="8" fill="#16213e"/>
-  <text x="275" y="66" text-anchor="middle" font-size="9" fill="#888" letter-spacing="0.5">PURE GO (DEFAULT)</text>
-  <text x="275" y="86" text-anchor="middle" font-size="19" font-weight="bold" fill="#a78bfa">13.9 ms</text>
+  <text x="275" y="66" text-anchor="middle" font-size="9" fill="#888" letter-spacing="0.5">PURE GO+SIMD (DEFAULT)</text>
+  <text x="275" y="86" text-anchor="middle" font-size="19" font-weight="bold" fill="#a78bfa">13.0 ms</text>
 
   <rect x="370" y="48" width="160" height="50" rx="8" fill="#16213e"/>
   <text x="450" y="66" text-anchor="middle" font-size="9" fill="#888" letter-spacing="0.5">OPENBLAS (CGO)</text>
@@ -97,9 +97,9 @@
   <rect x="655" y="363" width="50" height="97" rx="4" fill="url(#barGrad3)" opacity="0.75"/>
   <text x="680" y="357" text-anchor="middle" font-size="10" font-weight="bold" fill="#22d3ee">5.6</text>
 
-  <!-- Final: Pure Go 13.9 -->
-  <rect x="735" y="265" width="50" height="195" rx="4" fill="url(#barGrad4)" opacity="0.9"/>
-  <text x="760" y="259" text-anchor="middle" font-size="10" font-weight="bold" fill="#a78bfa">13.9</text>
+  <!-- Final: Pure Go 13.0 -->
+  <rect x="735" y="270" width="50" height="190" rx="4" fill="url(#barGrad4)" opacity="0.9"/>
+  <text x="760" y="264" text-anchor="middle" font-size="10" font-weight="bold" fill="#a78bfa">13.0</text>
 
   <!-- Final: OpenBLAS mmap 7.2 -->
   <rect x="805" y="334" width="50" height="126" rx="4" fill="url(#barGrad3)" opacity="1.0"/>
@@ -125,7 +125,7 @@
   <text x="120" y="421" text-anchor="middle" font-size="8" fill="#60a5fa">1.0×</text>
   <text x="260" y="181" text-anchor="middle" font-size="8" font-weight="bold" fill="#60a5fa">9.1×</text>
   <text x="540" y="149" text-anchor="middle" font-size="8" font-weight="bold" fill="#60a5fa">12.3×</text>
-  <text x="760" y="303" text-anchor="middle" font-size="8" font-weight="bold" fill="#60a5fa">4.9×</text>
+  <text x="760" y="303" text-anchor="middle" font-size="8" font-weight="bold" fill="#60a5fa">5.2×</text>
   <text x="830" y="183" text-anchor="middle" font-size="8" font-weight="bold" fill="#60a5fa">9.4×</text>
 
   <!-- X labels -->
@@ -166,7 +166,7 @@
   <circle cx="160" cy="534" r="3" fill="#60a5fa"/>
   <text x="181" y="539" font-size="9" fill="#ccc">Speedup</text>
   <rect x="240" y="528" width="12" height="12" rx="3" fill="url(#barGrad4)"/>
-  <text x="257" y="539" font-size="9" fill="#ccc">Pure Go (default)</text>
+  <text x="257" y="539" font-size="9" fill="#ccc">Pure Go + SIMD (default)</text>
   <rect x="360" y="528" width="12" height="12" rx="3" fill="url(#barGrad3)"/>
   <text x="377" y="539" font-size="9" fill="#ccc">OpenBLAS CGo (opt-in)</text>
 
