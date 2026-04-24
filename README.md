@@ -6,7 +6,7 @@ A pure Go implementation of the [GTE-small](https://huggingface.co/thenlper/gte-
 
 | Platform | Pure Go + assembly | OpenBLAS CGo (opt-in) |
 |---|---|---|
-| **amd64** (i7-12700) | **12 ms/embed** — 5.6× faster | 5.5 ms — 12.3× |
+| **amd64** (i7-12700) | **6.4 ms/embed** — 10.5× faster | 5.5 ms — 12.3× |
 | **arm64** (CIX P1 CD8160) | **64 ms/embed** — 1.6× faster¹ | — |
 
 ¹ vs gonum-only baseline on same hardware.
