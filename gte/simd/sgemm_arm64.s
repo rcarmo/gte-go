@@ -114,18 +114,18 @@ nt_k4:
     SUB     $4, R16, R16
 
 nt_k_reduce:
-    // Horizontal sum V0.S4 → scalar F0
+    // Horizontal sum V0.S4 → scalar F20
     VMOV    V0.S[0], R17
-    FMOVS   R17, F0
+    FMOVS   R17, F20
     VMOV    V0.S[1], R17
     FMOVS   R17, F4
-    FADDS   F4, F0, F0
+    FADDS   F4, F20, F20
     VMOV    V0.S[2], R17
     FMOVS   R17, F4
-    FADDS   F4, F0, F0
+    FADDS   F4, F20, F20
     VMOV    V0.S[3], R17
     FMOVS   R17, F4
-    FADDS   F4, F0, F0
+    FADDS   F4, F20, F20
 
     // Scalar tail
     CBZ     R16, nt_k_store
