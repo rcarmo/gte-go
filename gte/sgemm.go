@@ -37,16 +37,19 @@ func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int
 	if simd.HasSgemmAsm {
 		if !transA && transB {
 			if amd64 {
-				// amd64: gonum's asm DotUnitary + cache blocking = 6.4ms.
-				// GEBP with AVX2 pack = 16ms (pack dominates at 50%).
-				// Fall through to gonum.
+				// amd64: VGATHERDPS NT — no packing, no horizontal reductions,
+				// zero gonum allocs. 10ms (vs gonum 6.4ms, OpenBLAS 5.5ms).
+				// VGATHERDPS throughput (5 cycles) is the limiting factor.
+				simd.SgemmNTGather(m, n, k, alpha,
+					unsafePtr(a), unsafePtr(b), unsafePtr(c),
+					lda, ldb, ldc)
 			} else {
 				// arm64: GEBP NEON = 20ms vs gonum scalar = 104ms.
 				simd.SgemmNTGebp(m, n, k, alpha,
 					unsafePtr(a), unsafePtr(b), unsafePtr(c),
 					lda, ldb, ldc)
-				return
 			}
+			return
 		}
 		// NN: tiled assembly kernel, zero allocs.
 		if !transA && !transB {
