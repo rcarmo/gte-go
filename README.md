@@ -48,7 +48,7 @@ Default is `CGO_ENABLED=0`. Use `Load()` for pure Go builds, `LoadMmap()` for Op
 ## Testing
 
 ```bash
-GTE_MODEL_PATH=gte-small.gtemodel go test ./...   # 52 tests
+GTE_MODEL_PATH=gte-small.gtemodel go test ./...   # 52+ tests
 make go-bench                                       # inference benchmark
 ```
 
@@ -66,9 +66,9 @@ SIMD assembly for amd64 (AVX2+FMA) and arm64 (NEON) in `gte/simd/`:
 |---|---|---|---|
 | `Sdot` | 16-wide FMA | 8-wide VFMLA | Attention dot products |
 | `SgemmNN` | 32-wide tiled | 16-wide tiled | Attention context multiply |
-| GEBP micro-kernel | 6×16 tile | 4×16 tile | NT matmul (arm64 dispatch) |
+| GEBP micro-kernel | 6×16 tile | 4×16 tile | NT matmul (arm64) |
 
-NT dispatch: gonum on amd64 (its asm DotUnitary is fast), GEBP+NEON on arm64.
+NT dispatch: gonum on amd64 (fast asm DotUnitary), GEBP+NEON on arm64.
 
 ## Model Format
 
