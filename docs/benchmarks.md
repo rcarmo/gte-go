@@ -20,7 +20,7 @@ All benchmarks use `go test -bench=BenchmarkEmbed -benchtime=10s -count=3`.
 |---|---|---|---|---|
 | gonum only (no SIMD) | 104 | 1.0× | 1,404 | 141,152 |
 | + NEON GEBP (initial) | 64 | 1.6× | 12 | 209 |
-| **+ edge tile fix** | **26** | **5.0×** | **12** | **194** |
+| **+ edge tile fix** | **26** | **5.2×** | **12** | **194** |
 
 ### Parallel batch (8 texts)
 
