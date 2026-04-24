@@ -9,7 +9,7 @@ A pure Go implementation of the [GTE-small](https://huggingface.co/thenlper/gte-
 | **amd64** (i7-12700) | **6.4 ms/embed** — 10.5× faster | 5.5 ms — 12.3× |
 | **arm64** (CIX P1 CD8160) | **20 ms/embed** — 5.2× faster¹ | — |
 
-¹ vs gonum-only baseline on same hardware.
+¹ vs gonum-only baseline on same hardware. Both within 1.4–1.6× of theoretical floor.
 
 ![Optimization results](optimization-results.svg)
 
@@ -32,7 +32,7 @@ defer model.Close()
 
 emb, _ := model.Embed("Hello world")              // []float32, L2-normalized
 batch, _ := model.EmbedBatch([]string{"hi", "there"})
-batch, _ = model.EmbedBatchParallel(texts, 0)     // parallel with N workers
+batch, _ = model.EmbedBatchParallel(texts, 0)     // concurrent with N workers
 sim, _ := gte.CosineSimilarity(batch[0], batch[1])
 ```
 
@@ -43,7 +43,7 @@ sim, _ := gte.CosineSimilarity(batch[0], batch[1])
 | **Pure Go + SIMD (default)** | `make` | Static, portable |
 | OpenBLAS CGo | `CGO_ENABLED=1 make` | Dynamic, links libopenblas |
 
-Default is `CGO_ENABLED=0`. Use `Load()` for pure Go builds, `LoadMmap()` for OpenBLAS.
+Default is `CGO_ENABLED=0`. Use `Load()` for pure Go, `LoadMmap()` for OpenBLAS.
 
 ## Testing
 
@@ -56,19 +56,21 @@ make go-bench                                       # inference benchmark
 
 - **[docs/optimization-report.md](docs/optimization-report.md)** — detailed 4-phase optimization narrative
 - **[docs/simd-assembly.md](docs/simd-assembly.md)** — SIMD kernel reference and register conventions
-- **[docs/benchmarks.md](docs/benchmarks.md)** — cross-platform benchmark tables
+- **[docs/benchmarks.md](docs/benchmarks.md)** — cross-platform benchmark tables and profile breakdown
 
 ## Architecture
 
-SIMD assembly for amd64 (AVX2+FMA) and arm64 (NEON) in `gte/simd/`:
+SIMD assembly in `gte/simd/` for amd64 (AVX2+FMA) and arm64 (NEON):
 
 | Kernel | amd64 | arm64 | Used for |
 |---|---|---|---|
 | `Sdot` | 16-wide FMA | 8-wide VFMLA | Attention dot products |
 | `SgemmNN` | 32-wide tiled | 16-wide tiled | Attention context multiply |
 | GEBP micro-kernel | 6×16 tile | 4×16 tile | NT matmul (arm64) |
+| Pack transpose | — | 4×4 VTRN/VZIP | GEBP B-panel packing |
 
 NT dispatch: gonum on amd64 (fast asm DotUnitary), GEBP+NEON on arm64.
+Fused residual+layerNorm eliminates one pass per transformer block.
 
 ## Model Format
 

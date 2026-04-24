@@ -8,34 +8,34 @@
 
   <rect width="900" height="560" rx="12" fill="#1a1a2e"/>
 
-  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e0e0e0">GTE-Go: 67.4ms → 5.5ms (amd64) / 26ms (arm64)</text>
+  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e0e0e0">GTE-Go: 67.4ms → 5.5ms (amd64 CGo) / 6.4ms (amd64) / 20ms (arm64)</text>
 
-  <!-- Summary -->
-  <rect x="30" y="44" width="130" height="46" rx="8" fill="#16213e"/>
-  <text x="95" y="60" text-anchor="middle" font-size="9" fill="#888">ORIGINAL</text>
-  <text x="95" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#fb923c">67.4 ms</text>
+  <!-- Summary cards -->
+  <rect x="20" y="44" width="135" height="46" rx="8" fill="#16213e"/>
+  <text x="87" y="60" text-anchor="middle" font-size="9" fill="#888">ORIGINAL</text>
+  <text x="87" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#fb923c">67.4 ms</text>
 
-  <rect x="175" y="44" width="130" height="46" rx="8" fill="#16213e"/>
-  <text x="240" y="60" text-anchor="middle" font-size="9" fill="#888">PURE GO (AMD64)</text>
-  <text x="240" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">6.4 ms</text>
+  <rect x="168" y="44" width="135" height="46" rx="8" fill="#16213e"/>
+  <text x="235" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 PURE GO</text>
+  <text x="235" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">6.4 ms</text>
 
-  <rect x="320" y="44" width="130" height="46" rx="8" fill="#16213e"/>
-  <text x="385" y="60" text-anchor="middle" font-size="9" fill="#888">OPENBLAS CGO</text>
-  <text x="385" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#22d3ee">5.5 ms</text>
+  <rect x="316" y="44" width="135" height="46" rx="8" fill="#16213e"/>
+  <text x="383" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 OPENBLAS</text>
+  <text x="383" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#22d3ee">5.5 ms</text>
 
-  <rect x="465" y="44" width="130" height="46" rx="8" fill="#16213e"/>
-  <text x="530" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 NEON</text>
-  <text x="530" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">20 ms</text>
+  <rect x="464" y="44" width="135" height="46" rx="8" fill="#16213e"/>
+  <text x="531" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 NEON</text>
+  <text x="531" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">20 ms</text>
 
-  <rect x="610" y="44" width="130" height="46" rx="8" fill="#16213e"/>
-  <text x="675" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 SPEEDUP</text>
-  <text x="675" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">10.5×</text>
+  <rect x="612" y="44" width="135" height="46" rx="8" fill="#16213e"/>
+  <text x="679" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 SPEEDUP</text>
+  <text x="679" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">10.5×</text>
 
-  <rect x="755" y="44" width="120" height="46" rx="8" fill="#16213e"/>
-  <text x="815" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 SPEEDUP</text>
-  <text x="815" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">5.0×</text>
+  <rect x="760" y="44" width="120" height="46" rx="8" fill="#16213e"/>
+  <text x="820" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 SPEEDUP</text>
+  <text x="820" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">5.2×</text>
 
-  <!-- Chart area -->
+  <!-- Y axis -->
   <line x1="80" y1="110" x2="80" y2="450" stroke="#444"/>
   <text x="40" y="120" font-size="9" fill="#fb923c" text-anchor="middle">70</text>
   <text x="40" y="195" font-size="9" fill="#fb923c" text-anchor="middle">20</text>
@@ -55,92 +55,99 @@
   <line x1="80" y1="340" x2="860" y2="340" stroke="#333" stroke-width="0.5" stroke-dasharray="4,4"/>
   <line x1="80" y1="450" x2="860" y2="450" stroke="#444"/>
 
-  <!-- Optimization stages (amd64) -->
-  <rect x="95" y="118" width="45" height="332" rx="3" fill="url(#g1)" opacity="0.9"/>
-  <text x="117" y="112" text-anchor="middle" font-size="9" font-weight="bold" fill="#fb923c">67.4</text>
+  <!-- amd64 optimization stages -->
+  <rect x="95" y="118" width="42" height="332" rx="3" fill="url(#g1)" opacity="0.9"/>
+  <text x="116" y="112" text-anchor="middle" font-size="9" font-weight="bold" fill="#fb923c">67.4</text>
 
-  <rect x="153" y="126" width="45" height="324" rx="3" fill="url(#g1)" opacity="0.7"/>
-  <text x="175" y="120" text-anchor="middle" font-size="9" fill="#f59e0b">63.4</text>
+  <rect x="147" y="126" width="42" height="324" rx="3" fill="url(#g1)" opacity="0.7"/>
+  <text x="168" y="120" text-anchor="middle" font-size="8" fill="#f59e0b">63.4</text>
 
-  <rect x="211" y="278" width="45" height="172" rx="3" fill="url(#g2)" opacity="0.9"/>
-  <text x="233" y="272" text-anchor="middle" font-size="9" font-weight="bold" fill="#4ade80">7.4</text>
+  <rect x="199" y="278" width="42" height="172" rx="3" fill="url(#g2)" opacity="0.9"/>
+  <text x="220" y="272" text-anchor="middle" font-size="9" font-weight="bold" fill="#4ade80">7.4</text>
 
-  <rect x="269" y="280" width="45" height="170" rx="3" fill="url(#g2)" opacity="0.8"/>
-  <text x="291" y="274" text-anchor="middle" font-size="9" fill="#4ade80">7.3</text>
+  <rect x="251" y="280" width="42" height="170" rx="3" fill="url(#g2)" opacity="0.8"/>
+  <text x="272" y="274" text-anchor="middle" font-size="8" fill="#4ade80">7.3</text>
 
-  <rect x="327" y="292" width="45" height="158" rx="3" fill="url(#g2)" opacity="0.7"/>
-  <text x="349" y="286" text-anchor="middle" font-size="9" fill="#34d399">6.6</text>
+  <rect x="303" y="292" width="42" height="158" rx="3" fill="url(#g2)" opacity="0.7"/>
+  <text x="324" y="286" text-anchor="middle" font-size="8" fill="#34d399">6.6</text>
 
-  <rect x="385" y="298" width="45" height="152" rx="3" fill="url(#g2)" opacity="0.65"/>
-  <text x="407" y="292" text-anchor="middle" font-size="9" fill="#34d399">6.3</text>
+  <rect x="355" y="298" width="42" height="152" rx="3" fill="url(#g2)" opacity="0.65"/>
+  <text x="376" y="292" text-anchor="middle" font-size="8" fill="#34d399">6.3</text>
 
-  <rect x="443" y="318" width="45" height="132" rx="3" fill="url(#g3)" opacity="0.9"/>
-  <text x="465" y="312" text-anchor="middle" font-size="9" font-weight="bold" fill="#22d3ee">5.5</text>
+  <rect x="407" y="318" width="42" height="132" rx="3" fill="url(#g3)" opacity="0.9"/>
+  <text x="428" y="312" text-anchor="middle" font-size="9" font-weight="bold" fill="#22d3ee">5.5</text>
 
   <!-- Separator -->
-  <line x1="505" y1="110" x2="505" y2="460" stroke="#444" stroke-dasharray="2,4"/>
+  <line x1="465" y1="110" x2="465" y2="460" stroke="#444" stroke-dasharray="2,4"/>
 
   <!-- Final builds -->
-  <rect x="525" y="292" width="55" height="158" rx="3" fill="url(#g4)" opacity="0.9"/>
-  <text x="552" y="286" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">6.4</text>
-  <text x="552" y="465" text-anchor="middle" font-size="8" fill="#a78bfa">Pure Go</text>
-  <text x="552" y="475" text-anchor="middle" font-size="7" fill="#666">amd64</text>
+  <rect x="485" y="292" width="58" height="158" rx="3" fill="url(#g4)" opacity="0.9"/>
+  <text x="514" y="286" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">6.4</text>
+  <text x="514" y="465" text-anchor="middle" font-size="8" fill="#a78bfa">Pure Go</text>
+  <text x="514" y="476" text-anchor="middle" font-size="7" fill="#666">amd64</text>
 
-  <rect x="595" y="318" width="55" height="132" rx="3" fill="url(#g3)" opacity="0.95"/>
-  <text x="622" y="312" text-anchor="middle" font-size="9" font-weight="bold" fill="#22d3ee">5.5</text>
-  <text x="622" y="465" text-anchor="middle" font-size="8" fill="#22d3ee">OpenBLAS</text>
-  <text x="622" y="475" text-anchor="middle" font-size="7" fill="#666">amd64</text>
+  <rect x="555" y="318" width="58" height="132" rx="3" fill="url(#g3)" opacity="0.95"/>
+  <text x="584" y="312" text-anchor="middle" font-size="9" font-weight="bold" fill="#22d3ee">5.5</text>
+  <text x="584" y="465" text-anchor="middle" font-size="8" fill="#22d3ee">OpenBLAS</text>
+  <text x="584" y="476" text-anchor="middle" font-size="7" fill="#666">amd64</text>
 
-  <!-- arm64: 26ms -->
-  <rect x="665" y="200" width="55" height="250" rx="3" fill="url(#g4)" opacity="0.8"/>
-  <text x="692" y="194" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">26</text>
-  <text x="692" y="465" text-anchor="middle" font-size="8" fill="#a78bfa">NEON</text>
-  <text x="692" y="475" text-anchor="middle" font-size="7" fill="#666">arm64</text>
+  <!-- arm64 20ms -->
+  <rect x="635" y="195" width="58" height="255" rx="3" fill="url(#g4)" opacity="0.8"/>
+  <text x="664" y="189" text-anchor="middle" font-size="9" font-weight="bold" fill="#a78bfa">20</text>
+  <text x="664" y="465" text-anchor="middle" font-size="8" fill="#a78bfa">NEON</text>
+  <text x="664" y="476" text-anchor="middle" font-size="7" fill="#666">arm64</text>
 
-  <!-- arm64 baseline: 104ms -->
-  <rect x="735" y="118" width="55" height="332" rx="3" fill="url(#g1)" opacity="0.5"/>
-  <text x="762" y="112" text-anchor="middle" font-size="9" fill="#fb923c">104</text>
-  <text x="762" y="465" text-anchor="middle" font-size="8" fill="#fb923c">gonum</text>
-  <text x="762" y="475" text-anchor="middle" font-size="7" fill="#666">arm64 base</text>
+  <!-- arm64 baseline 104ms -->
+  <rect x="710" y="118" width="58" height="332" rx="3" fill="url(#g1)" opacity="0.4"/>
+  <text x="739" y="112" text-anchor="middle" font-size="9" fill="#fb923c">104</text>
+  <text x="739" y="465" text-anchor="middle" font-size="8" fill="#fb923c">gonum</text>
+  <text x="739" y="476" text-anchor="middle" font-size="7" fill="#666">arm64 base</text>
 
-  <!-- Speedup line (amd64) -->
+  <!-- Theoretical floors -->
+  <line x1="480" y1="395" x2="620" y2="395" stroke="#60a5fa" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
+  <text x="550" y="405" text-anchor="middle" font-size="7" fill="#60a5fa" opacity="0.5">~4ms floor</text>
+  <line x1="625" y1="255" x2="700" y2="255" stroke="#60a5fa" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
+  <text x="662" y="248" text-anchor="middle" font-size="7" fill="#60a5fa" opacity="0.5">~14ms floor</text>
+
+  <!-- Speedup line (amd64 stages) -->
   <polyline fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"
-    points="117,430 175,429 233,189 291,187 349,178 407,174 465,162"/>
-  <circle cx="117" cy="430" r="3" fill="#60a5fa"/>
-  <circle cx="233" cy="189" r="4" fill="#60a5fa"/>
-  <circle cx="407" cy="174" r="3" fill="#60a5fa"/>
-  <circle cx="465" cy="162" r="4" fill="#60a5fa"/>
-
-  <text x="117" y="422" text-anchor="middle" font-size="7" fill="#60a5fa">1.0×</text>
-  <text x="233" y="181" text-anchor="middle" font-size="7" font-weight="bold" fill="#60a5fa">9.1×</text>
-  <text x="407" y="166" text-anchor="middle" font-size="7" fill="#60a5fa">10.7×</text>
-  <text x="465" y="154" text-anchor="middle" font-size="7" font-weight="bold" fill="#60a5fa">12.3×</text>
+    points="116,430 168,429 220,189 272,187 324,178 376,174 428,162"/>
+  <circle cx="116" cy="430" r="3" fill="#60a5fa"/>
+  <circle cx="220" cy="189" r="4" fill="#60a5fa"/>
+  <circle cx="376" cy="174" r="3" fill="#60a5fa"/>
+  <circle cx="428" cy="162" r="4" fill="#60a5fa"/>
+  <text x="116" y="422" text-anchor="middle" font-size="7" fill="#60a5fa">1.0×</text>
+  <text x="220" y="181" text-anchor="middle" font-size="7" font-weight="bold" fill="#60a5fa">9.1×</text>
+  <text x="376" y="166" text-anchor="middle" font-size="7" fill="#60a5fa">10.7×</text>
+  <text x="428" y="154" text-anchor="middle" font-size="7" font-weight="bold" fill="#60a5fa">12.3×</text>
 
   <!-- Brackets -->
-  <line x1="520" y1="488" x2="660" y2="488" stroke="#555"/>
-  <text x="590" y="500" text-anchor="middle" font-size="7" fill="#777">amd64 finals</text>
-  <line x1="660" y1="488" x2="795" y2="488" stroke="#555"/>
-  <text x="727" y="500" text-anchor="middle" font-size="7" fill="#777">arm64</text>
+  <line x1="480" y1="488" x2="620" y2="488" stroke="#555"/>
+  <text x="550" y="500" text-anchor="middle" font-size="7" fill="#777">amd64 finals</text>
+  <line x1="625" y1="488" x2="775" y2="488" stroke="#555"/>
+  <text x="700" y="500" text-anchor="middle" font-size="7" fill="#777">arm64</text>
 
-  <!-- X labels for stages -->
-  <text x="117" y="465" text-anchor="middle" font-size="7" fill="#aaa">Base</text>
-  <text x="175" y="465" text-anchor="middle" font-size="7" fill="#aaa">P1a</text>
-  <text x="233" y="465" text-anchor="middle" font-size="7" fill="#aaa">P1b</text>
-  <text x="291" y="465" text-anchor="middle" font-size="7" fill="#aaa">P1c</text>
-  <text x="349" y="465" text-anchor="middle" font-size="7" fill="#aaa">P2a</text>
-  <text x="407" y="465" text-anchor="middle" font-size="7" fill="#aaa">P2b</text>
-  <text x="465" y="465" text-anchor="middle" font-size="7" fill="#aaa">P3a</text>
+  <!-- X labels -->
+  <text x="116" y="465" text-anchor="middle" font-size="7" fill="#aaa">Base</text>
+  <text x="168" y="465" text-anchor="middle" font-size="7" fill="#aaa">P1a</text>
+  <text x="220" y="465" text-anchor="middle" font-size="7" fill="#aaa">P1b</text>
+  <text x="272" y="465" text-anchor="middle" font-size="7" fill="#aaa">P1c</text>
+  <text x="324" y="465" text-anchor="middle" font-size="7" fill="#aaa">P2a</text>
+  <text x="376" y="465" text-anchor="middle" font-size="7" fill="#aaa">P2b</text>
+  <text x="428" y="465" text-anchor="middle" font-size="7" fill="#aaa">P3a</text>
 
   <!-- Legend -->
   <rect x="80" y="520" width="10" height="10" rx="2" fill="url(#g1)"/>
   <text x="95" y="530" font-size="8" fill="#ccc">ms/op</text>
-  <line x1="135" y1="525" x2="160" y2="525" stroke="#60a5fa" stroke-width="2"/>
-  <circle cx="147" cy="525" r="2.5" fill="#60a5fa"/>
-  <text x="166" y="530" font-size="8" fill="#ccc">Speedup</text>
-  <rect x="220" y="520" width="10" height="10" rx="2" fill="url(#g4)"/>
-  <text x="235" y="530" font-size="8" fill="#ccc">Pure Go+SIMD</text>
-  <rect x="320" y="520" width="10" height="10" rx="2" fill="url(#g3)"/>
-  <text x="335" y="530" font-size="8" fill="#ccc">OpenBLAS CGo</text>
+  <line x1="130" y1="525" x2="152" y2="525" stroke="#60a5fa" stroke-width="2"/>
+  <circle cx="141" cy="525" r="2.5" fill="#60a5fa"/>
+  <text x="158" y="530" font-size="8" fill="#ccc">Speedup</text>
+  <rect x="205" y="520" width="10" height="10" rx="2" fill="url(#g4)"/>
+  <text x="220" y="530" font-size="8" fill="#ccc">Pure Go+SIMD</text>
+  <rect x="300" y="520" width="10" height="10" rx="2" fill="url(#g3)"/>
+  <text x="315" y="530" font-size="8" fill="#ccc">OpenBLAS CGo</text>
+  <line x1="395" y1="525" x2="420" y2="525" stroke="#60a5fa" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+  <text x="435" y="530" font-size="8" fill="#777">Theoretical floor</text>
 
-  <text x="450" y="550" text-anchor="middle" font-size="7" fill="#555">amd64: i7-12700 · arm64: CIX P1 CD8160 · Go 1.26.2 · GTE-small (384d, 12L) · BenchmarkEmbed -benchtime=10s</text>
+  <text x="450" y="550" text-anchor="middle" font-size="7" fill="#555">amd64: i7-12700 4.7GHz · arm64: CIX P1 CD8160 2GHz · Go 1.26.2 · GTE-small (384d, 12L)</text>
 </svg>
