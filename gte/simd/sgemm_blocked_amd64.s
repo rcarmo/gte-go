@@ -1,6 +1,5 @@
 // sgemm_blocked_amd64.s — AVX2/FMA blocked NT tile kernel
-// Processes 2 j values per inner loop, sharing A loads.
-// 4 accumulators: Y0,Y1 for j+0, Y4,Y5 for j+1.
+// 2j at a time, sharing A loads. Cache-blocked by Go driver.
 
 #include "textflag.h"
 
@@ -85,7 +84,6 @@ k2_reduce:
     VADDPS  X1, X0, X0
     VHADDPS X0, X0, X0
     VHADDPS X0, X0, X0
-
     VEXTRACTF128 $1, Y4, X6
     VADDPS  X6, X4, X4
     VHADDPS X4, X4, X4
