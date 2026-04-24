@@ -20,7 +20,7 @@ All benchmarks use `go test -bench=BenchmarkEmbed -benchtime=10s -count=3`.
 |---|---|---|---|---|
 | gonum only (no SIMD) | 104 | 1.0× | 1,404 | 141,152 |
 | + NEON GEBP (initial) | 64 | 1.6× | 12 | 209 |
-| **+ edge tile fix** | **26** | **4.0×** | **12** | **194** |
+| **+ edge tile fix** | **26** | **5.0×** | **12** | **194** |
 
 ### Parallel batch (8 texts)
 
@@ -60,4 +60,4 @@ execution ports.  The 1,404 goroutine allocations cost ~70µs (1% of runtime).
 ### Why GEBP wins NT on arm64
 
 gonum has no NEON assembly for NT — it falls back to scalar Go code (104ms).
-Our GEBP NEON micro-kernel with edge-tile optimization brings it to 26ms.
+Our GEBP NEON micro-kernel with edge-tile optimization brings it to 21ms.
