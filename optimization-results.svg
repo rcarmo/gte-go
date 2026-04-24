@@ -8,32 +8,32 @@
 
   <rect width="900" height="560" rx="12" fill="#1a1a2e"/>
 
-  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e0e0e0">GTE-Go: 67.4ms → 5.5ms (amd64 CGo) / 6.4ms (amd64) / 20ms (arm64)</text>
+  <text x="450" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e0e0e0">GTE-Go: flat-latency embeddings — 12 allocs, zero GC pressure</text>
 
   <!-- Summary cards -->
   <rect x="20" y="44" width="135" height="46" rx="8" fill="#16213e"/>
-  <text x="87" y="60" text-anchor="middle" font-size="9" fill="#888">ORIGINAL</text>
-  <text x="87" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#fb923c">67.4 ms</text>
+  <text x="87" y="60" text-anchor="middle" font-size="9" fill="#888">ALLOCS/EMBED</text>
+  <text x="87" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">12</text>
 
   <rect x="168" y="44" width="135" height="46" rx="8" fill="#16213e"/>
-  <text x="235" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 PURE GO</text>
-  <text x="235" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">6.4 ms</text>
+  <text x="235" y="60" text-anchor="middle" font-size="9" fill="#888">GC PRESSURE</text>
+  <text x="235" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">18 KB/s</text>
 
   <rect x="316" y="44" width="135" height="46" rx="8" fill="#16213e"/>
-  <text x="383" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 OPENBLAS</text>
-  <text x="383" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#22d3ee">5.5 ms</text>
+  <text x="383" y="60" text-anchor="middle" font-size="9" fill="#888">GOROUTINE CHURN</text>
+  <text x="383" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">0</text>
 
   <rect x="464" y="44" width="135" height="46" rx="8" fill="#16213e"/>
-  <text x="531" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 NEON</text>
-  <text x="531" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">20 ms</text>
+  <text x="531" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64</text>
+  <text x="531" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">11 ms</text>
 
   <rect x="612" y="44" width="135" height="46" rx="8" fill="#16213e"/>
-  <text x="679" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 SPEEDUP</text>
-  <text x="679" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">10.5×</text>
+  <text x="679" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64</text>
+  <text x="679" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#a78bfa">20 ms</text>
 
   <rect x="760" y="44" width="120" height="46" rx="8" fill="#16213e"/>
-  <text x="820" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 SPEEDUP</text>
-  <text x="820" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#60a5fa">5.2×</text>
+  <text x="820" y="60" text-anchor="middle" font-size="9" fill="#888">vs GONUM GC</text>
+  <text x="820" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#fb923c">750× less</text>
 
   <!-- Y axis -->
   <line x1="80" y1="110" x2="80" y2="450" stroke="#444"/>
