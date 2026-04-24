@@ -1,6 +1,6 @@
 // pack_arm64.s — NEON 4×4 transpose pack for GEBP
 //
-// func packBNTNeon(b0..b15 uintptr, k int, bp uintptr)
+// func packBNTAsm(b0..b15 uintptr, k int, bp uintptr)
 //
 // Processes 4 columns at a time using 4×4 transpose via VTRN1/VTRN2/VZIP1/VZIP2.
 // For each group of 4 rows and 4 columns:
@@ -10,7 +10,7 @@
 
 #include "textflag.h"
 
-TEXT ·packBNTNeon(SB), NOSPLIT, $0-144
+TEXT ·packBNTAsm(SB), NOSPLIT, $0-144
     MOVD    b0+0(FP), R0
     MOVD    b1+8(FP), R1
     MOVD    b2+16(FP), R2

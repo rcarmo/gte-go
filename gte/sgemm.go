@@ -37,12 +37,11 @@ func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int
 	if simd.HasSgemmAsm {
 		if !transA && transB {
 			if amd64 {
-				// amd64: gonum's asm DotUnitary + cache blocking is faster
-				// than our FMA tile (6.4ms vs 12ms) despite not using FMA,
-				// due to zero per-dot overhead. Costs 1404 goroutine allocs
-				// (~70µs = 1% of runtime). Fall through to gonum.
+				// amd64: gonum's asm DotUnitary + cache blocking = 6.4ms.
+				// GEBP with AVX2 pack = 16ms (pack dominates at 50%).
+				// Fall through to gonum.
 			} else {
-				// arm64: GEBP with NEON micro-kernel (gonum has no NEON NT)
+				// arm64: GEBP NEON = 20ms vs gonum scalar = 104ms.
 				simd.SgemmNTGebp(m, n, k, alpha,
 					unsafePtr(a), unsafePtr(b), unsafePtr(c),
 					lda, ldb, ldc)

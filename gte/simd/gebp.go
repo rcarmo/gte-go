@@ -16,8 +16,8 @@ func ensureGebpBuf(size int) []float32 {
 }
 
 func packBNT(b []float32, ldb, jj, nr, k int, bp []float32) {
-	if nr == gebpNR && hasNeonPack {
-		packBNTNeon(
+	if nr == gebpNR && (hasNeonPack || hasAvxPack) {
+		packBNTAsm(
 			uintptr(unsafe.Pointer(&b[(jj+0)*ldb])),
 			uintptr(unsafe.Pointer(&b[(jj+1)*ldb])),
 			uintptr(unsafe.Pointer(&b[(jj+2)*ldb])),
