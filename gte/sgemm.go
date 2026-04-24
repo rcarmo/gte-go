@@ -37,14 +37,17 @@ func sgemm(transA, transB bool, m, n, k int, alpha float32, a []float32, lda int
 	if simd.HasSgemmAsm {
 		if !transA && transB {
 			if !amd64 {
-				// arm64: GEBP with NEON is faster than gonum (63ms vs 104ms).
-				// Blocked tile has a known accuracy bug on arm64.
+				// arm64: GEBP with NEON (blocked tile has accuracy bug on arm64)
 				simd.SgemmNTGebp(m, n, k, alpha,
 					unsafePtr(a), unsafePtr(b), unsafePtr(c),
 					lda, ldb, ldc)
 				return
 			}
-			// amd64: fall through to gonum (its asm DotUnitary is fast)
+			// amd64: gonum's asm DotUnitary with cache blocking wins for small m.
+			// Our FMA tile kernel (13ms) can't beat gonum (6.4ms) despite FMA,
+			// because the horizontal reduce per dot product costs ~5 instructions
+			// vs gonum's zero-overhead DotUnitary call from Go.
+			// Fall through to gonum.
 		}
 		// NN: tiled assembly kernel, zero allocs.
 		if !transA && !transB {
