@@ -61,6 +61,8 @@ type Model struct {
 	tokenBuf     []int
 	attnMaskBuf  []bool
 	basicBuf     []string
+	wpBuf        []byte
+	lowerBuf     []byte
 }
 
 // LayerWeights mirrors a transformer block.
