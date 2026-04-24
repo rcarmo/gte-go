@@ -63,6 +63,34 @@ func layerNorm(out, x, gamma, beta []float32, seqLen, hidden int) {
 	}
 }
 
+// residualLayerNorm fuses out = layerNorm(x + residual, gamma, beta)
+// Eliminates one pass over the data vs separate add + layerNorm.
+func residualLayerNorm(out, x, residual, gamma, beta []float32, seqLen, hidden int) {
+	for s := 0; s < seqLen; s++ {
+		rowStart := s * hidden
+		// Fused: add residual and compute mean in one pass
+		mean := float32(0)
+		for i := 0; i < hidden; i++ {
+			v := x[rowStart+i] + residual[rowStart+i]
+			x[rowStart+i] = v // store sum for variance pass
+			mean += v
+		}
+		mean /= float32(hidden)
+
+		variance := float32(0)
+		for i := 0; i < hidden; i++ {
+			diff := x[rowStart+i] - mean
+			variance += diff * diff
+		}
+		variance /= float32(hidden)
+		stdInv := fastInvSqrt(variance + layerNormEps)
+
+		for i := 0; i < hidden; i++ {
+			out[rowStart+i] = gamma[i]*(x[rowStart+i]-mean)*stdInv + beta[i]
+		}
+	}
+}
+
 func gelu(x []float32) {
 	const c = float32(0.7978845608) // sqrt(2/pi)
 	for i := range x {
@@ -145,10 +173,7 @@ func (m *Model) selfAttention(layer *LayerWeights, seqLen int, attnMask []bool) 
 	}
 
 	linear(m.tempHidden, m.attnOutput, layer.AttnOutputWeight, layer.AttnOutputBias, seqLen, hidden, hidden)
-	for i := 0; i < seqLen*hidden; i++ {
-		m.tempHidden[i] += m.hiddenStates[i]
-	}
-	layerNorm(m.hiddenStates, m.tempHidden, layer.AttnLnWeight, layer.AttnLnBias, seqLen, hidden)
+	residualLayerNorm(m.hiddenStates, m.tempHidden, m.hiddenStates, layer.AttnLnWeight, layer.AttnLnBias, seqLen, hidden)
 }
 
 // selfAttentionHeadScalar is the original scalar path, now using contiguous per-head buffers.
@@ -236,10 +261,7 @@ func (m *Model) feedForward(layer *LayerWeights, seqLen int) {
 	gelu(m.ffnHidden[:seqLen*inter])
 
 	linear(m.tempHidden, m.ffnHidden, layer.FfnOutputWeight, layer.FfnOutputBias, seqLen, inter, hidden)
-	for i := 0; i < seqLen*hidden; i++ {
-		m.tempHidden[i] += m.hiddenStates[i]
-	}
-	layerNorm(m.hiddenStates, m.tempHidden, layer.FfnLnWeight, layer.FfnLnBias, seqLen, hidden)
+	residualLayerNorm(m.hiddenStates, m.tempHidden, m.hiddenStates, layer.FfnLnWeight, layer.FfnLnBias, seqLen, hidden)
 }
 
 func (m *Model) transformerForward(tokenIDs []int, seqLen int, attnMask []bool) {

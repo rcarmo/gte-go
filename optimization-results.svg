@@ -25,7 +25,7 @@
 
   <rect x="465" y="44" width="130" height="46" rx="8" fill="#16213e"/>
   <text x="530" y="60" text-anchor="middle" font-size="9" fill="#888">ARM64 NEON</text>
-  <text x="530" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">21 ms</text>
+  <text x="530" y="78" text-anchor="middle" font-size="17" font-weight="bold" fill="#4ade80">20 ms</text>
 
   <rect x="610" y="44" width="130" height="46" rx="8" fill="#16213e"/>
   <text x="675" y="60" text-anchor="middle" font-size="9" fill="#888">AMD64 SPEEDUP</text>
