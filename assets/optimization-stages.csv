@@ -1,0 +1,16 @@
+stage,platform,ms_per_embed,allocs,bytes_per_op,approach
+Original,amd64,67.4,170,15598,Scalar loops + math via float64
+Phase 1a - fast math,amd64,63.4,170,15598,float32 Padé/Newton approximations
+Phase 1b - gonum BLAS,amd64,7.4,1610,159437,blas32.Sgemm cache-blocked
+Phase 1c - adaptive attention,amd64,7.3,1454,145410,No goroutines for short seqs
+Phase 2a - fused QKV,amd64,6.6,1406,142338,3 Sgemm → 1
+Phase 2b - contiguous heads,amd64,6.3,1406,142338,[heads seq dim] layout
+Phase 3a - OpenBLAS CGo,amd64,5.5,12,186,cblas_sgemm AVX2
+Final - VGATHERDPS,amd64,10,1,7,AVX2 gather 6×8 tile
+Final - OpenBLAS CGo,amd64,5.5,1,7,cblas_sgemm
+gonum baseline,arm64,104,1404,141152,No NEON for NT
+GEBP NEON,arm64,64,12,209,4×16 micro-kernel
++ edge tile fix,arm64,26,12,194,Route partial tiles through asm
++ NEON pack,arm64,21,12,192,4×4 VTRN/VZIP transpose
++ zero-alloc tokenizer,arm64,20,1,11,unsafe.String + reusable buffers
+Final - OpenBLAS CGo,arm64,14,1,11,cblas_sgemm

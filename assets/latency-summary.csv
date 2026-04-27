@@ -1,0 +1,9 @@
+platform,mode,p50_ms,p95_ms,p99_ms,max_ms,stddev_ms,gc_setting
+amd64,discrete,12.9,25.1,49.2,155.3,8.8,default
+amd64,batch-100,15.1,19.0,20.8,20.8,2.4,default
+arm64,discrete,20.4,33.6,63.2,450.8,22.9,default
+arm64,batch-100,21.5,35.7,36.7,36.7,4.7,default
+amd64,discrete,13.3,25.8,44.8,144.6,8.8,GOGC=off
+amd64,batch-100,16.2,20.0,20.6,20.6,2.3,GOGC=off
+arm64,discrete,20.3,33.1,63.4,431.1,21.7,GOGC=off
+arm64,batch-100,21.4,35.0,35.9,35.9,4.5,GOGC=off
