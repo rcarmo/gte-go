@@ -118,3 +118,127 @@ that's 40K overhead instructions — 10% of the total FMA work.
 OpenBLAS avoids this by using the GEBP approach with B-packing, which converts
 the NT dot products into NN-style fused multiply-accumulate without horizontal
 reductions. This is the main reason OpenBLAS achieves 5.5ms vs our 6.4ms.
+
+## Phase 4 — Q4 Quantization (model size optimization)
+
+### Motivation
+
+GTE-small has 33M parameters. At FP32, the model file is 63 MB. For edge
+deployments (embedded devices, WASM, mobile), download size and flash storage
+matter more than raw latency. Q4_0 quantization reduces the model to 20 MB
+while preserving semantic accuracy.
+
+### Q4_0 format
+
+Block size: 32 elements. Each block:
+
+```
+┌──────────────┬──────────────────────────┐
+│ scale (4B)   │ packed nibbles (16B)     │
+│ float32      │ 32 × 4-bit values       │
+└──────────────┴──────────────────────────┘
+```
+
+- **Compression**: 20 bytes per 32 floats (vs 128 FP32) = **6.4× reduction**
+- **Quantization**: symmetric, `q = round(value / scale) + 8`, clamped to [0,15]
+- **Dequantization**: `value = scale × (nibble - 8)`
+- **What's quantized**: all weight matrices (Q/K/V, attention output, FFN up/down, pooler)
+- **What stays FP32**: biases, LayerNorm params, attention scores, hidden states
+
+### Model size
+
+| Component | FP32 | Q4 |
+|---|---|---|
+| Weight matrices | 62.8 MB | 19.85 MB |
+| Biases + LayerNorm | 0.23 MB | 0.23 MB |
+| Vocab | 0.35 MB | 0.35 MB |
+| **Total** | **63.4 MB** | **20.3 MB** |
+
+### Accuracy
+
+Q4 embeddings are nearly identical to FP32:
+
+| Metric | Value |
+|---|---|
+| Same-text cosine (FP32 vs Q4) | **0.99** |
+| Rank ordering | Preserved (no inversions) |
+| Weak-pair bias | +0.015 (predictable, consistent) |
+
+Example pair similarities:
+
+| Pair | FP32 | Q4 |
+|---|---|---|
+| cat/kitten (strong) | 0.882 | 0.888 |
+| cat/stocks (weak) | 0.695 | 0.715 |
+
+### SIMD kernels
+
+The Q4 dot product dequantizes on-the-fly during the FMA loop:
+
+**amd64 (AVX2+FMA):**
+```
+per block (32 elements):
+  VBROADCASTSS scale → Y1
+  VMOVDQU 16 packed bytes → X2
+  VPAND 0x0F → low nibbles
+  VPSRLW 4 → high nibbles
+  4× (VPMOVZXBD → VCVTDQ2PS → VSUBPS 8.0 → VMULPS scale → VFMADD231PS x)
+```
+
+**arm64 (NEON, via WORD macros):**
+```
+per block (32 elements):
+  VLD1 16 bytes
+  VAND 0x0F / VUSHR 4 → nibbles
+  8× (UXTL → UCVTF → FSUB 8.0 → FMUL scale → VFMLA x)
+```
+
+Microbenchmarks (single dot product, 384 dimensions):
+- **amd64**: 193 ns/dot (12 blocks)
+- **arm64**: verified correct on CIX P1 (all tests pass)
+
+### Latency trade-off
+
+| Platform | FP32 (ms) | Q4 (ms) | Q4/FP32 |
+|---|---|---|---|
+| amd64 i7-12700 | 10 | 103 | 10.3× slower |
+| arm64 CIX P1 | 20 | 92 | 4.6× slower |
+
+**Why Q4 is slower**: On both platforms, the FP32 model weights fit in L3 cache.
+The FP32 SIMD kernels (VGATHERDPS on amd64, GEBP NEON on arm64) operate at
+near-peak FMA throughput. Q4 adds per-block overhead:
+- 1 scale broadcast
+- 2 nibble extractions (AND + shift)
+- 4 (amd64) or 8 (arm64) int→float conversions
+- 4/8 subtract-8 operations
+- 4/8 scale multiplications
+
+This overhead exceeds the memory bandwidth savings because the working set
+already fits in cache. Q4 would show wins on systems with:
+- Small L3 (model doesn't fit)
+- Low memory bandwidth (embedded SoCs)
+- Multiple concurrent model instances (memory-constrained)
+
+### When to use Q4
+
+| Use case | Recommended format |
+|---|---|
+| Latency-critical serving | FP32 (10ms amd64, 20ms arm64) |
+| Edge/IoT deployment | **Q4** (20MB, 1 alloc, correct rankings) |
+| WASM/browser inference | **Q4** (smaller download, no SIMD needed) |
+| Memory-constrained (many models) | **Q4** (3× less RAM per model) |
+| Batch throughput | FP32 + OpenBLAS (5.5ms/embed) |
+
+### Usage
+
+```bash
+# Convert model
+python convert_model_q4.py models/gte-small gte-small-q4.gtemodel
+
+# Use in Go
+model, _ := gte.LoadQ4("gte-small-q4.gtemodel")
+emb, _ := model.Embed("Hello world")
+```
+
+The API is identical to the FP32 model. `IsQ4Model(path)` detects the format
+by reading the file magic (`GTE4` vs `GTE1`).

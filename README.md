@@ -76,9 +76,32 @@ make go-bench                                                       # quick benc
 go run ./cmd/jitter -model gte-small.gtemodel -texts assets/northwind_texts.txt -n 5000  # jitter
 ```
 
+## Q4 Quantization (20 MB model)
+
+For edge/IoT/WASM deployment where model size matters more than latency:
+
+```bash
+python convert_model_q4.py models/gte-small gte-small-q4.gtemodel  # 63 MB → 20 MB
+```
+
+```go
+model, _ := gte.LoadQ4("gte-small-q4.gtemodel")
+emb, _ := model.Embed("Hello world")  // same API, same accuracy
+```
+
+| | FP32 | Q4 |
+|---|---|---|
+| Model size | 63 MB | **20 MB** |
+| Same-text cosine (FP32↔Q4) | — | **0.99** |
+| Rank ordering | — | Preserved |
+| amd64 latency | 10ms | 103ms |
+| arm64 latency | 20ms | 92ms |
+
+Q4 is slower because FP32 weights fit in L3 cache — the dequant overhead exceeds bandwidth savings. Use Q4 when you need a **small binary**, not when you need speed. `IsQ4Model(path)` auto-detects the format.
+
 ## Documentation
 
-- **[docs/optimization-report.md](docs/optimization-report.md)** — 4-phase optimization narrative
+- **[docs/optimization-report.md](docs/optimization-report.md)** — 4-phase optimization narrative + Q4 analysis
 - **[docs/simd-assembly.md](docs/simd-assembly.md)** — SIMD kernel reference
 - **[docs/benchmarks.md](docs/benchmarks.md)** — full tables, jitter data, profile breakdown
 
@@ -89,6 +112,7 @@ go run ./cmd/jitter -model gte-small.gtemodel -texts assets/northwind_texts.txt 
 | NT matmul | VGATHERDPS 6×8 | GEBP NEON 4×16 |
 | NN matmul | AVX2+FMA 32-wide | NEON 16-wide |
 | Dot product | AVX2 FMA | NEON VFMLA |
+| Q4 dequant-dot | AVX2 VPMOVZXBD+FMA | NEON UXTL+UCVTF+FMLA |
 | Pack | — | NEON 4×4 transpose |
 
 Zero gonum in hot path. 1 allocation per embed (uppercase token lowering). For all-lowercase input: **0 allocations**.

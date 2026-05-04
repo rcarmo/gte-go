@@ -105,3 +105,45 @@ Raw data: [assets/](../assets/)
 ## SVE (arm64)
 
 CIX P1 supports SVE2 but vector length = 128 bits (same as NEON). No benefit.
+
+## Q4 Quantization
+
+### Model size
+
+| Format | Size | Compression |
+|---|---|---|
+| FP32 (GTE1) | 63.4 MB | — |
+| **Q4 (GTE4)** | **20.3 MB** | **3.1×** |
+
+### Accuracy (FP32 vs Q4)
+
+| Metric | Value |
+|---|---|
+| Same-text cosine similarity | **0.99** |
+| Rank ordering | Perfectly preserved |
+| Weak-pair bias | +0.015 (predictable) |
+
+### Latency
+
+| Platform | FP32 | Q4 | Overhead |
+|---|---|---|---|
+| amd64 i7-12700 | 10ms | 103ms | 10.3× |
+| arm64 CIX P1 | 20ms | 92ms | 4.6× |
+
+Q4 is slower because FP32 weights fit in L3 cache and SIMD dequant adds
+per-block conversion overhead. The primary Q4 value is **model size reduction**
+for edge deployment, not latency.
+
+### Q4 DotQ4 microbenchmark
+
+| Platform | 384-dim dot | Notes |
+|---|---|---|
+| amd64 AVX2+FMA | **193 ns** | 12 blocks, 4 FMA per block |
+| arm64 NEON | verified correct | WORD-encoded UXTL/UCVTF |
+
+### Reproduce
+
+```bash
+python convert_model_q4.py models/gte-small gte-small-q4.gtemodel
+GTE_Q4_MODEL_PATH=gte-small-q4.gtemodel go test -bench BenchmarkEmbedQ4 -benchmem ./gte/
+```
