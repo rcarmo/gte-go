@@ -19,7 +19,11 @@ func isWhitespace(b byte) bool {
 }
 
 func (m *Model) basicTokenize(text string) []string {
-	tokens := m.basicBuf[:0]
+	return basicTokenizeWith(text, &m.basicBuf, &m.lowerBuf)
+}
+
+func basicTokenizeWith(text string, basicBuf *[]string, lowerBuf *[]byte) []string {
+	tokens := (*basicBuf)[:0]
 	i := 0
 	for i < len(text) {
 		for i < len(text) && isWhitespace(text[i]) {
@@ -48,10 +52,10 @@ func (m *Model) basicTokenize(text string) []string {
 			tokens = append(tokens, src)
 		} else {
 			// Reuse buffer for lowercase
-			if cap(m.lowerBuf) < len(src) {
-				m.lowerBuf = make([]byte, len(src)*2)
+			if cap(*lowerBuf) < len(src) {
+				*lowerBuf = make([]byte, len(src)*2)
 			}
-			b := m.lowerBuf[:len(src)]
+			b := (*lowerBuf)[:len(src)]
 			for j := 0; j < len(src); j++ {
 				c := src[j]
 				if c >= 'A' && c <= 'Z' {
@@ -63,17 +67,19 @@ func (m *Model) basicTokenize(text string) []string {
 			tokens = append(tokens, string(b))
 		}
 	}
-	m.basicBuf = tokens
+	*basicBuf = tokens
 	return tokens
 }
 
 func (m *Model) wordpieceTokenize(word string, out []int) []int {
+	return wordpieceTokenizeWith(word, out, m.vocabMap, &m.wpBuf)
+}
+
+func wordpieceTokenizeWith(word string, out []int, vocabMap map[string]int, wpBuf *[]byte) []int {
 	if word == "" {
 		return out
 	}
-	// Reuse a buffer to avoid strings.Builder allocations per subword lookup.
-	// Max candidate: "##" + word = 2 + len(word) bytes.
-	buf := m.wpBuf[:0]
+	buf := (*wpBuf)[:0]
 	start := 0
 	for start < len(word) {
 		end := len(word)
@@ -86,7 +92,7 @@ func (m *Model) wordpieceTokenize(word string, out []int) []int {
 			buf = append(buf, word[start:end]...)
 			// Lookup without allocating a string: use unsafe conversion.
 			candidate := unsafeString(buf)
-			if id, ok := m.vocabMap[candidate]; ok {
+			if id, ok := vocabMap[candidate]; ok {
 				found = id
 				break
 			}
@@ -100,36 +106,41 @@ func (m *Model) wordpieceTokenize(word string, out []int) []int {
 			start = end
 		}
 	}
-	m.wpBuf = buf[:0]
+	*wpBuf = buf[:0]
 	return out
 }
 
 func (m *Model) tokenize(text string) ([]int, []bool) {
-	basic := m.basicTokenize(text)
+	return tokenizeWith(text, m.vocabMap, m.MaxSeqLen, &m.tokenBuf, &m.attnMaskBuf, &m.basicBuf, &m.wpBuf, &m.lowerBuf)
+}
 
-	if cap(m.tokenBuf) < m.MaxSeqLen {
-		m.tokenBuf = make([]int, 0, m.MaxSeqLen)
+// tokenizeWith is the shared tokenization logic usable by both FP32 and Q4 models.
+func tokenizeWith(text string, vocabMap map[string]int, maxSeqLen int, tokenBuf *[]int, attnMaskBuf *[]bool, basicBuf *[]string, wpBuf *[]byte, lowerBuf *[]byte) ([]int, []bool) {
+	basic := basicTokenizeWith(text, basicBuf, lowerBuf)
+
+	if cap(*tokenBuf) < maxSeqLen {
+		*tokenBuf = make([]int, 0, maxSeqLen)
 	}
-	if cap(m.attnMaskBuf) < m.MaxSeqLen {
-		m.attnMaskBuf = make([]bool, 0, m.MaxSeqLen)
+	if cap(*attnMaskBuf) < maxSeqLen {
+		*attnMaskBuf = make([]bool, 0, maxSeqLen)
 	}
 
-	tokens := m.tokenBuf[:0]
-	attnMask := m.attnMaskBuf[:0]
+	tokens := (*tokenBuf)[:0]
+	attnMask := (*attnMaskBuf)[:0]
 
 	tokens = append(tokens, tokenCLS)
 	for _, tok := range basic {
-		if len(tokens) >= m.MaxSeqLen-1 {
+		if len(tokens) >= maxSeqLen-1 {
 			break
 		}
 		prevLen := len(tokens)
-		tokens = m.wordpieceTokenize(tok, tokens)
-		if len(tokens) > m.MaxSeqLen-1 {
-			tokens = tokens[:prevLen] // drop token that would overflow
+		tokens = wordpieceTokenizeWith(tok, tokens, vocabMap, wpBuf)
+		if len(tokens) > maxSeqLen-1 {
+			tokens = tokens[:prevLen]
 			break
 		}
 	}
-	if len(tokens) < m.MaxSeqLen {
+	if len(tokens) < maxSeqLen {
 		tokens = append(tokens, tokenSEP)
 	}
 	attnMask = attnMask[:len(tokens)]
@@ -137,8 +148,8 @@ func (m *Model) tokenize(text string) ([]int, []bool) {
 		attnMask[i] = true
 	}
 
-	m.tokenBuf = tokens
-	m.attnMaskBuf = attnMask
+	*tokenBuf = tokens
+	*attnMaskBuf = attnMask
 	return tokens, attnMask
 }
 
