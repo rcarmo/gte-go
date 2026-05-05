@@ -197,3 +197,115 @@ func BenchmarkLinearQ4_384x384(b *testing.B) {
 		)
 	}
 }
+
+func TestDotQ4IntAccuracy(t *testing.T) {
+	n := 384
+	a := make([]float32, n)
+	b := make([]float32, n)
+	for i := range a {
+		a[i] = float32(i%17-8) * 0.01
+		b[i] = float32(i%13-6) * 0.02
+	}
+
+	// FP32 reference
+	fp32Dot := float32(0)
+	for i := range a {
+		fp32Dot += a[i] * b[i]
+	}
+
+	// Quantize b, compute dot with integer path
+	bQ4 := quantizeQ4(b)
+	nBlocks := n / QK4_0
+	q4IntDot := simd.DotQ4Int(unsafe.Pointer(&a[0]), unsafe.Pointer(&bQ4[0]), nBlocks)
+
+	relErr := float64(math.Abs(float64(q4IntDot-fp32Dot)) / math.Abs(float64(fp32Dot)))
+	t.Logf("FP32 dot: %.6f, Q4Int dot: %.6f, rel error: %.4f%%", fp32Dot, q4IntDot, relErr*100)
+
+	// Also compare with float DotQ4
+	q4FloatDot := simd.DotQ4(unsafe.Pointer(&a[0]), unsafe.Pointer(&bQ4[0]), nBlocks)
+	t.Logf("Q4Float dot: %.6f (for comparison)", q4FloatDot)
+
+	if relErr > 0.20 { // 20% — generous for double quantization
+		t.Errorf("Q4Int dot product relative error too high: %.2f%%", relErr*100)
+	}
+}
+
+func BenchmarkDotQ4Int_384(b *testing.B) {
+	n := 384
+	x := make([]float32, n)
+	for i := range x {
+		x[i] = float32(i%17-8) * 0.01
+	}
+	data := make([]float32, n)
+	for i := range data {
+		data[i] = float32(i%13-6) * 0.02
+	}
+	blocks := quantizeQ4(data)
+	nBlocks := n / QK4_0
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		simd.DotQ4Int(unsafe.Pointer(&x[0]), unsafe.Pointer(&blocks[0]), nBlocks)
+	}
+}
+
+func BenchmarkLinearQ4Int_384x384(b *testing.B) {
+	inDim := 384
+	outDim := 384
+	seqLen := 1
+
+	x := make([]float32, seqLen*inDim)
+	for i := range x { x[i] = float32(i%17-8) * 0.01 }
+	w := make([]float32, outDim*inDim)
+	for i := range w { w[i] = float32(i%23-11) * 0.005 }
+	wQ4 := make([]byte, 0, outDim*inDim/QK4_0*BlockQ4Size)
+	for o := 0; o < outDim; o++ {
+		wQ4 = append(wQ4, quantizeQ4(w[o*inDim:o*inDim+inDim])...)
+	}
+	bias := make([]float32, outDim)
+	y := make([]float32, seqLen*outDim)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		linearQ4Int(y, x, wQ4, bias, seqLen, inDim, outDim)
+	}
+}
+
+func TestLinearQ4IntAccuracy(t *testing.T) {
+	inDim := 64
+	outDim := 32
+	seqLen := 2
+
+	x := make([]float32, seqLen*inDim)
+	for i := range x { x[i] = float32(i%19-9) * 0.01 }
+	w := make([]float32, outDim*inDim)
+	for i := range w { w[i] = float32(i%23-11) * 0.005 }
+	bias := make([]float32, outDim)
+	for i := range bias { bias[i] = float32(i) * 0.01 }
+
+	// FP32 reference
+	yRef := make([]float32, seqLen*outDim)
+	for s := 0; s < seqLen; s++ {
+		for o := 0; o < outDim; o++ {
+			sum := float32(0)
+			for k := 0; k < inDim; k++ { sum += x[s*inDim+k] * w[o*inDim+k] }
+			yRef[s*outDim+o] = sum + bias[o]
+		}
+	}
+
+	wQ4 := make([]byte, 0)
+	for o := 0; o < outDim; o++ { wQ4 = append(wQ4, quantizeQ4(w[o*inDim:o*inDim+inDim])...) }
+	yQ4 := make([]float32, seqLen*outDim)
+	linearQ4Int(yQ4, x, wQ4, bias, seqLen, inDim, outDim)
+
+	maxRelErr := float64(0)
+	for i := range yRef {
+		if yRef[i] == 0 { continue }
+		relErr := math.Abs(float64(yQ4[i]-yRef[i])) / math.Abs(float64(yRef[i]))
+		if relErr > maxRelErr { maxRelErr = relErr }
+	}
+	t.Logf("LinearQ4Int max relative error: %.4f%%", maxRelErr*100)
+	if maxRelErr > 0.30 {
+		t.Errorf("error too high: %.2f%%", maxRelErr*100)
+	}
+}

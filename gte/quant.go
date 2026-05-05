@@ -24,6 +24,7 @@ func dotQ4(x []float32, blocks []byte, numElements int) float32 {
 }
 
 // linearQ4 computes Y = X·W^T + bias where W is Q4-quantized.
+// Uses SIMD dequant-on-the-fly dot product.
 func linearQ4(y, x []float32, w []byte, b []float32, seqLen, inDim, outDim int) {
 	var biasPtr unsafe.Pointer
 	if b != nil {
