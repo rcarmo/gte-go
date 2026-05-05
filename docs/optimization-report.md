@@ -242,3 +242,36 @@ emb, _ := model.Embed("Hello world")
 
 The API is identical to the FP32 model. `IsQ4Model(path)` detects the format
 by reading the file magic (`GTE4` vs `GTE1`).
+
+### Integer MAC analysis (VPMADDUBSW / SDOT)
+
+We explored replacing the float dequant-dot pipeline with integer multiply-
+accumulate instructions:
+
+| Approach | Instructions/block | Per-block overhead |
+|---|---|---|
+| **Float DotQ4** (current) | 25 | None — float accumulator |
+| **Integer DotQ4Int** | 20 | +4 (descale: cvt+3×mul per block) |
+| **Integer DotQ4Int** (per-dot) | 36+ | +x-quant: 30 insn overhead |
+
+**Why integer is only marginally better in theory (20 vs 25 insn/block):**
+
+The float path's key advantage: it accumulates directly into a float32 register
+across all 12 blocks per dot product, then does ONE horizontal sum at the end.
+No per-block scaling needed because `dequant = scale × (nibble-8)` folds the
+scale into the VMULPS that precedes VFMADD231PS.
+
+The integer path MUST descale per block because `w_scale` differs per block
+per output row. Each block requires: `int_dot → VCVTDQ2PS → MULSS × 2 → ADDSS`.
+That's 4 extra float instructions that negate the VPMADDUBSW throughput gain.
+
+**When integer WOULD win:**
+- Fixed scale across all blocks (requires format change)
+- Extremely bandwidth-limited systems where 6.4× less memory read matters
+- VPDPBUSD (AVX-VNNI) reducing the MAC to 1 instruction per 32 elements
+- Very long vectors where amortized x-quant becomes negligible
+
+**Measured results:**
+- DotQ4Int per-dot: 4130ns vs DotQ4: 177ns (23× slower, x-quant dominates)
+- linearQ4Int amortized scalar: 237μs vs LinearQ4 SIMD: 71μs (3.3× slower)
+- Full model: 265ms (int scalar) vs 103ms (SIMD float) vs 10ms (FP32)
