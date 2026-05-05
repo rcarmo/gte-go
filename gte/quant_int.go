@@ -1,21 +1,26 @@
 package gte
 
-import "math"
+import (
+	"math"
+	"unsafe"
+
+	"github.com/rcarmo/gte-go/gte/simd"
+)
 
 // linearQ4Int computes Y = X·W^T + bias where W is Q4-quantized,
 // using integer MAC with amortized x-quantization.
 //
 // For each sequence position:
 //   1. Quantize x to int8 ONCE (per block: find absmax, scale to [-127,127])
-//   2. For each output row: integer dot of pre-quantized x_i8 with w nibbles
+//   2. For each output row: integer dot of pre-quantized x with w nibbles
 //   3. Descale: y[o] = Σ_blocks (x_scale[b] * w_scale[o,b] * int_dot[b])
 //
-// This amortizes the expensive x-quantization across all outDim rows.
+// The key win: x quantization is amortized across all outDim rows.
 func linearQ4Int(y, x []float32, w []byte, b []float32, seqLen, inDim, outDim int) {
 	nBlocks := inDim / QK4_0
 	rowBytes := nBlocks * BlockQ4Size
 
-	// Pre-allocated scratch for quantized x (per sequence position)
+	// Pre-allocated scratch
 	xI8 := make([]int8, nBlocks*QK4_0)
 	xScales := make([]float32, nBlocks)
 
@@ -65,7 +70,7 @@ func linearQ4Int(y, x []float32, w []byte, b []float32, seqLen, inDim, outDim in
 			for blk := 0; blk < nBlocks; blk++ {
 				bOff := blk * BlockQ4Size
 				bits := uint32(wRow[bOff]) | uint32(wRow[bOff+1])<<8 | uint32(wRow[bOff+2])<<16 | uint32(wRow[bOff+3])<<24
-				wScale := *(*float32)(unsafePtrUint32(&bits))
+				wScale := *(*float32)(unsafe.Pointer(&bits))
 
 				if xScales[blk] == 0 || wScale == 0 {
 					continue
@@ -74,10 +79,10 @@ func linearQ4Int(y, x []float32, w []byte, b []float32, seqLen, inDim, outDim in
 				xOff := blk * QK4_0
 				dot := int32(0)
 				for i := 0; i < 16; i++ {
-					nibLo := int32(wRow[bOff+4+i] & 0x0F)
-					nibHi := int32(wRow[bOff+4+i] >> 4)
-					dot += int32(xI8[xOff+i]) * (nibLo - 8)
-					dot += int32(xI8[xOff+16+i]) * (nibHi - 8)
+					nibLo := int32(wRow[bOff+4+i]&0x0F) - 8
+					nibHi := int32(wRow[bOff+4+i]>>4) - 8
+					dot += int32(xI8[xOff+i]) * nibLo
+					dot += int32(xI8[xOff+16+i]) * nibHi
 				}
 
 				sum += xScales[blk] * wScale * float32(dot)
@@ -90,3 +95,6 @@ func linearQ4Int(y, x []float32, w []byte, b []float32, seqLen, inDim, outDim in
 		}
 	}
 }
+
+// Unused import guard
+var _ = simd.DotQ4Int
